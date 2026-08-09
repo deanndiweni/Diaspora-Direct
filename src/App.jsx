@@ -802,6 +802,33 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
 
   useEffect(() => { loadData(); }, [role]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    if (!checkout) return;
+    const requestId = params.get("request_id");
+    const sessionId = params.get("session_id");
+    const clean = () => window.history.replaceState({}, "", window.location.pathname);
+    (async () => {
+      if (checkout === "success" && sessionId) {
+        try {
+          const resp = await fetch("/api/verify-checkout", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+          });
+          const json = await resp.json();
+          if (json.paid && requestId) {
+            await supabase.from("requests").update({ status: "requested" }).eq("id", requestId);
+          }
+        } catch (e) {}
+      } else if (checkout === "cancel" && requestId) {
+        await supabase.from("requests").update({ status: "cancelled" }).eq("id", requestId);
+      }
+      clean();
+      loadData();
+    })();
+  }, []);
+
   const loadMessages = async (requestId) => {
     const { data } = await supabase.from("messages").select("*").eq("request_id", requestId).order("created_at", { ascending: true });
     return (data || []).map((m) => ({
@@ -831,13 +858,26 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
   };
 
   const handleCreate = async ({ service, title, city, notes, fee, payMethod }) => {
+    const initialStatus = payMethod === "card" ? "pending_payment" : "requested";
     const { data, error } = await supabase.from("requests").insert({
       client_id: profile.id, category: service, title, city, country: "Zimbabwe",
-      description: notes, fee, pay_method: payMethod, status: "requested",
+      description: notes, fee, pay_method: payMethod, status: initialStatus,
     }).select().single();
-    if (!error && data) {
-      setRequests((r) => [{ ...mapRequestRow(data, agentNames), agent: null }, ...r]);
+    if (error || !data) { setScreen("home"); return; }
+    if (payMethod === "card") {
+      try {
+        const resp = await fetch("/api/create-checkout-session", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestId: data.id, title, fee }),
+        });
+        const json = await resp.json();
+        if (json.url) { window.location.href = json.url; return; }
+      } catch (e) {}
+      await supabase.from("requests").update({ status: "cancelled" }).eq("id", data.id);
+      setScreen("home");
+      return;
     }
+    setRequests((r) => [{ ...mapRequestRow(data, agentNames), agent: null }, ...r]);
     setScreen("home");
   };
 
