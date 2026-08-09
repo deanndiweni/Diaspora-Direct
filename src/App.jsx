@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "./supabaseClient";
 import {
   Home, PlusCircle, ClipboardList, User, MessageCircle, ChevronLeft,
   Plane, CheckCircle2, Circle, MapPin, Phone, Camera, Send, ShieldCheck,
@@ -240,7 +241,7 @@ function Button({ children, onClick, variant = "primary", full, disabled }) {
 
 // ---------- Client screens ----------
 
-function ClientHome({ requests, goto, setRole }) {
+function ClientHome({ requests, goto, setRole, profile }) {
   const active = requests.filter((r) => r.status !== "completed");
   return (
     <div style={{ padding: 16 }}>
@@ -248,7 +249,7 @@ function ClientHome({ requests, goto, setRole }) {
         <img src={LOGO_B64} alt="Diaspora Direct" style={{ width: 46, height: 46, borderRadius: 10, objectFit: "cover" }} />
         <div>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoalSoft }}>Good afternoon</div>
-          <div style={{ fontFamily: "'Spectral', serif", fontSize: 22, fontWeight: 700, color: C.charcoal }}>Dean</div>
+          <div style={{ fontFamily: "'Spectral', serif", fontSize: 22, fontWeight: 700, color: C.charcoal }}>{profile?.full_name ? profile.full_name.split(" ")[0] : "there"}</div>
         </div>
       </div>
 
@@ -342,7 +343,7 @@ function ClientHome({ requests, goto, setRole }) {
           fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, textDecoration: "underline", cursor: "pointer",
         }}
       >
-        Switch to agent view (demo)
+        Sign out
       </button>
     </div>
   );
@@ -587,7 +588,7 @@ function ClientRequests({ requests, goto }) {
   );
 }
 
-function ClientProfile({ setRole }) {
+function ClientProfile({ setRole, profile }) {
   return (
     <div>
       <TopBar title="Profile" />
@@ -597,15 +598,15 @@ function ClientProfile({ setRole }) {
             D
           </div>
           <div>
-            <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 15, color: C.charcoal }}>Dean Ndiweni</div>
-            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft }}>Ormskirk, UK</div>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 15, color: C.charcoal }}>{profile?.full_name || "Your name"}</div>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft }}>{profile?.email || ""}</div>
           </div>
         </Card>
         <Card>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 4 }}>WhatsApp support</div>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: C.charcoalSoft }}>+44 7778 392915</div>
         </Card>
-        <Button variant="ghost" full onClick={() => setRole("agent")}>Switch to agent view (demo)</Button>
+        <Button variant="ghost" full onClick={() => setRole("agent")}>Sign out</Button>
       </div>
     </div>
   );
@@ -664,7 +665,7 @@ function AgentHome({ queue, mine, goto, setRole }) {
           onClick={() => setRole("client")}
           style={{ marginTop: 10, background: "none", border: "none", color: C.charcoalSoft, fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, textDecoration: "underline", cursor: "pointer" }}
         >
-          Switch to client view (demo)
+          Sign out
         </button>
       </div>
     </div>
@@ -736,13 +737,88 @@ function AgentEarnings() {
 
 // ---------- App shell ----------
 
-export default function DiasporaDirectApp() {
-  const [role, setRole] = useState("client");
+export default function DiasporaDirectApp({ profile, onSignOut }) {
+  const role = profile.role;
   const [screen, setScreen] = useState("home");
   const [selectedId, setSelectedId] = useState(null);
   const [presetService, setPresetService] = useState(null);
-  const [requests, setRequests] = useState(seedRequests);
-  const [queue, setQueue] = useState(seedQueue);
+  const [requests, setRequests] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const [agentRow, setAgentRow] = useState(null);
+  const [agentNames, setAgentNames] = useState({});
+
+  const buildLog = (status) => STEPS.map((s) => ({
+    step: s,
+    done: STEPS.indexOf(s) <= STEPS.indexOf(status),
+    time: STEPS.indexOf(s) <= STEPS.indexOf(status) ? "—" : "",
+  }));
+
+  const mapRequestRow = (r, names) => ({
+    id: r.id, service: r.category, title: r.title, country: r.country || "Zimbabwe", city: r.city,
+    status: r.status, agent: r.agent_id ? ((names && names[r.agent_id]) || "Assigned agent") : null,
+    agentId: r.agent_id, notes: r.description, fee: r.fee, payMethod: r.pay_method, paid: true,
+    messages: [], log: buildLog(r.status),
+  });
+
+  const loadAgentRow = async () => {
+    let { data } = await supabase.from("agents").select("*").eq("profile_id", profile.id).maybeSingle();
+    if (!data) {
+      const { data: created } = await supabase.from("agents").insert({ profile_id: profile.id }).select().single();
+      data = created;
+    }
+    setAgentRow(data);
+    return data;
+  };
+
+  const loadAgentNames = async (rows) => {
+    const ids = [...new Set(rows.map((r) => r.agent_id).filter(Boolean))];
+    if (ids.length === 0) return {};
+    const { data } = await supabase.from("agents").select("id, profile_id").in("id", ids);
+    if (!data || data.length === 0) return {};
+    const profileIds = data.map((a) => a.profile_id);
+    const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", profileIds);
+    const nameByProfile = {};
+    (profs || []).forEach((p) => { nameByProfile[p.id] = p.full_name; });
+    const nameByAgent = {};
+    data.forEach((a) => { nameByAgent[a.id] = nameByProfile[a.profile_id] || "Agent"; });
+    return nameByAgent;
+  };
+
+  const loadData = async () => {
+    if (role === "client") {
+      const { data } = await supabase.from("requests").select("*").eq("client_id", profile.id).order("created_at", { ascending: false });
+      const rows = data || [];
+      const names = await loadAgentNames(rows);
+      setAgentNames(names);
+      setRequests(rows.map((r) => mapRequestRow(r, names)));
+    } else {
+      const agent = await loadAgentRow();
+      const { data: unclaimed } = await supabase.from("requests").select("*").eq("status", "requested").is("agent_id", null).order("created_at", { ascending: false });
+      const mineRes = agent ? await supabase.from("requests").select("*").eq("agent_id", agent.id).order("created_at", { ascending: false }) : { data: [] };
+      setQueue((unclaimed || []).map((r) => mapRequestRow(r, {})));
+      setRequests((mineRes.data || []).map((r) => ({ ...mapRequestRow(r, {}), agent: "You" })));
+    }
+  };
+
+  useEffect(() => { loadData(); }, [role]);
+
+  const loadMessages = async (requestId) => {
+    const { data } = await supabase.from("messages").select("*").eq("request_id", requestId).order("created_at", { ascending: true });
+    return (data || []).map((m) => ({
+      from: m.sender_id === profile.id ? role : (role === "client" ? "agent" : "client"),
+      text: m.content,
+      time: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    }));
+  };
+
+  useEffect(() => {
+    if (selectedId && (screen === "detail" || screen === "task")) {
+      loadMessages(selectedId).then((msgs) => {
+        setRequests((rs) => rs.map((r) => (r.id === selectedId ? { ...r, messages: msgs } : r)));
+        setQueue((qs) => qs.map((r) => (r.id === selectedId ? { ...r, messages: msgs } : r)));
+      });
+    }
+  }, [selectedId, screen]);
 
   const goto = (s, id) => {
     if (id) setSelectedId(id);
@@ -750,60 +826,64 @@ export default function DiasporaDirectApp() {
     setScreen(s);
   };
 
-  const handleSwitchRole = (r) => {
-    setRole(r);
+  const handleSwitchRole = () => {
+    onSignOut();
+  };
+
+  const handleCreate = async ({ service, title, city, notes, fee, payMethod }) => {
+    const { data, error } = await supabase.from("requests").insert({
+      client_id: profile.id, category: service, title, city, country: "Zimbabwe",
+      description: notes, fee, pay_method: payMethod, status: "requested",
+    }).select().single();
+    if (!error && data) {
+      setRequests((r) => [{ ...mapRequestRow(data, agentNames), agent: null }, ...r]);
+    }
     setScreen("home");
   };
 
-  const handleCreate = ({ service, title, city, notes, fee, payMethod }) => {
-    const id = "DD-" + Math.floor(2000 + Math.random() * 900);
-    const newReq = {
-      id, service, title, city, country: "Zimbabwe", status: "requested", agent: null, notes, messages: [],
-      fee, payMethod, paid: true,
-      log: STEPS.map((s) => ({ step: s, done: s === "requested", time: s === "requested" ? "Just now" : "" })),
-    };
-    setQueue((q) => [newReq, ...q]);
-    setRequests((r) => [newReq, ...r]);
+  const handleSendMessage = async (id, text) => {
+    const { data, error } = await supabase.from("messages").insert({
+      request_id: id, sender_id: profile.id, content: text,
+    }).select().single();
+    if (!error && data) {
+      const newMsg = { from: role, text, time: "Now" };
+      setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, messages: [...r.messages, newMsg] } : r)));
+      setQueue((qs) => qs.map((r) => (r.id === id ? { ...r, messages: [...r.messages, newMsg] } : r)));
+    }
+  };
+
+  const handleAccept = async (id) => {
+    if (!agentRow) return;
+    const { error } = await supabase.from("requests").update({ agent_id: agentRow.id, status: "assigned" }).eq("id", id);
+    if (!error) {
+      setQueue((q) => q.filter((t) => t.id !== id));
+      await loadData();
+    }
     setScreen("home");
   };
 
-  const handleSendMessage = (id, text) => {
-    setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, messages: [...r.messages, { from: "client", text, time: "Now" }] } : r)));
-  };
-
-  const handleAccept = (id) => {
-    const task = queue.find((q) => q.id === id);
-    if (!task) return;
-    setQueue((q) => q.filter((t) => t.id !== id));
-    setRequests((rs) => rs.map((r) => (r.id === id ? {
-      ...r, status: "assigned", agent: "You",
-      log: r.log.map((l) => (l.step === "assigned" ? { ...l, done: true, time: "Just now" } : l)),
-    } : r)));
-    setScreen("home");
-  };
-
-  const handleAdvance = (id) => {
-    setRequests((rs) => rs.map((r) => {
-      if (r.id !== id) return r;
-      const idx = STEPS.findIndex((s) => s === r.status);
-      const next = STEPS[idx + 1];
-      return {
-        ...r, status: next,
-        log: r.log.map((l) => (l.step === next ? { ...l, done: true, time: "Just now" } : l)),
-      };
-    }));
+  const handleAdvance = async (id) => {
+    const current = requests.find((r) => r.id === id);
+    if (!current) return;
+    const idx = STEPS.findIndex((s) => s === current.status);
+    const next = STEPS[idx + 1];
+    if (!next) return;
+    const { error } = await supabase.from("requests").update({ status: next }).eq("id", id);
+    if (!error) {
+      setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, status: next, log: buildLog(next) } : r)));
+    }
   };
 
   const selected = requests.find((r) => r.id === selectedId);
 
   let body;
   if (role === "client") {
-    if (screen === "home") body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} />;
+    if (screen === "home") body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} profile={profile} />;
     else if (screen === "new") body = <NewRequest presetService={presetService} onCreate={handleCreate} goto={goto} />;
     else if (screen === "detail" && selected) body = <RequestDetail request={selected} goto={goto} onSendMessage={handleSendMessage} />;
     else if (screen === "requests") body = <ClientRequests requests={requests} goto={goto} />;
-    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} />;
-    else body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} />;
+    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
+    else body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} profile={profile} />;
   } else {
     if (screen === "home") body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} />;
     else if (screen === "task") {
@@ -811,7 +891,7 @@ export default function DiasporaDirectApp() {
       body = <AgentTask request={task} goto={goto} onAccept={handleAccept} onAdvance={handleAdvance} />;
     }
     else if (screen === "earnings") body = <AgentEarnings />;
-    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} />;
+    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
     else body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} />;
   }
 
