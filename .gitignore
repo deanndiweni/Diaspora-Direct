@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+android/.gradle/
+android/local.properties
+android/app/build/
+android/app/src/main/assets/public/
+ios/App/Pods/
+ios/App/DerivedData/
+ios/App/App/public/

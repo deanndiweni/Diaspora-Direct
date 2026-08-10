@@ -27,6 +27,9 @@ const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 `;
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
+
 const SERVICES = [
   { id: "property", label: "Property checks", icon: MapPin, blurb: "Photo inspection reports for your home, land or investment" },
   { id: "family", label: "Family welfare", icon: HeartHandshake, blurb: "Welfare visits, photos and video calls with elderly relatives" },
@@ -964,7 +967,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
       if (checkout === "success" && sessionId) {
         setBanner({ kind: "info", text: "Confirming your payment…" });
         try {
-          const resp = await fetch("/api/verify-checkout", {
+          const resp = await fetch(apiUrl("/api/verify-checkout"), {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId }),
           });
@@ -1027,7 +1030,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     if (error || !data) { setScreen("home"); return; }
     if (payMethod === "card") {
       try {
-        const resp = await fetch("/api/create-checkout-session", {
+        const resp = await fetch(apiUrl("/api/create-checkout-session"), {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ requestId: data.id, title, fee }),
         });

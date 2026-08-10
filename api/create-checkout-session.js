@@ -14,7 +14,10 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Invalid request" });
       return;
     }
-    const origin = req.headers.origin || "https://app.diaspora-direct.com";
+    const requestOrigin = req.headers.origin || "";
+    const origin = /^https?:\/\//i.test(requestOrigin)
+      ? requestOrigin
+      : "https://app.diaspora-direct.com";
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],

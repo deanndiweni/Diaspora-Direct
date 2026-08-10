@@ -1,0 +1,13 @@
+{
+  "appId": "com.diasporadirect.app",
+  "appName": "Diaspora Direct",
+  "webDir": "dist",
+  "backgroundColor": "#F6F1E8",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile"
+  }
+}
