@@ -1,6 +1,6 @@
 # Diaspora Direct App
 
-A client and agent booking app prototype for Diaspora Direct.
+A client and agent booking app for Diaspora Direct, live at app.diaspora-direct.com.
 
 ## Run locally
 
@@ -26,14 +26,14 @@ Open the URL it prints (usually http://localhost:5173).
 3. Build command: `npm run build`, publish directory: `dist`
 4. Deploy, then add your custom subdomain under Domain settings
 
-## What this is, and isn't
+## Current state
 
-This is a front end only. Everything (requests, messages, payments) lives in
-memory and resets on refresh. Before real customers use it, you'll need:
+Auth and data run on Supabase. Payments run on Stripe Checkout, with the
+serverless functions in /api creating and verifying the session. Still to do:
 
-- A database (Supabase or Firebase are the fastest to set up)
-- Real authentication (sign up / log in)
-- A real payment processor (Stripe)
-- A backend or serverless functions to connect the two
+- Photo upload from agents, via Supabase storage
+- Realtime updates for requests and messages
+- Email or push notifications on status changes
+- Solicitor review of the terms and privacy pages in /public
 
-Treat this as the clickable spec for that build, not the finished product.
+The terms and privacy pages are drafts and are linked from the sign-up form and the client profile screen.
