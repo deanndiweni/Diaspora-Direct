@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
+import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 import {
   Home, PlusCircle, ClipboardList, User, MessageCircle, ChevronLeft,
   Plane, CheckCircle2, Circle, MapPin, Phone, Camera, Send, ShieldCheck,
@@ -663,7 +666,25 @@ function ClientRequests({ requests, goto }) {
   );
 }
 
-function ClientProfile({ setRole, profile }) {
+function ClientProfile({ setRole, profile, onDeleteAccount }) {
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const confirmDelete = async () => {
+    const confirmed = window.confirm(
+      "Permanently delete your Diaspora Direct account and associated personal data? This cannot be undone."
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await onDeleteAccount();
+    } catch (error) {
+      setDeleteError(error.message || "We could not delete your account. Please contact support.");
+      setDeleting(false);
+    }
+  };
+
   return (
     <div>
       <TopBar title="Profile" />
@@ -681,7 +702,24 @@ function ClientProfile({ setRole, profile }) {
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 4 }}>WhatsApp support</div>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: C.charcoalSoft }}>+44 7778 392915</div>
         </Card>
-        <Card><div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 8 }}>Legal</div><div style={{ display: "flex", gap: 16 }}><a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Terms of Service</a><a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Privacy Policy</a></div></Card><Button variant="ghost" full onClick={() => setRole("agent")}>Sign out</Button>
+        <Card>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 8 }}>Legal & privacy</div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Terms of Service</a>
+            <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Privacy Policy</a>
+            <a href="/delete-account.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Account deletion help</a>
+          </div>
+        </Card>
+        <Button variant="ghost" full onClick={() => setRole("agent")}>Sign out</Button>
+        <button
+          type="button"
+          onClick={confirmDelete}
+          disabled={deleting}
+          style={{ width: "100%", marginTop: 10, padding: "11px 14px", borderRadius: 10, border: `1px solid ${C.alert}`, background: "transparent", color: C.alert, fontFamily: "'Work Sans', sans-serif", fontWeight: 600, cursor: deleting ? "default" : "pointer", opacity: deleting ? 0.65 : 1 }}
+        >
+          {deleting ? "Deleting account…" : "Delete account"}
+        </button>
+        {deleteError && <div role="alert" style={{ marginTop: 8, color: C.alert, fontFamily: "'Work Sans', sans-serif", fontSize: 12 }}>{deleteError}</div>}
       </div>
     </div>
   );
@@ -953,17 +991,14 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
 
   useEffect(() => { loadData(); }, [role]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+  const processCheckoutParams = async (params, cleanUrl = false) => {
     const checkout = params.get("checkout");
     if (!checkout) return;
     const requestId = params.get("request_id");
     const sessionId = params.get("session_id");
-    const clean = () => window.history.replaceState({}, "", window.location.pathname);
-    (async () => {
-      try {
-        await supabase.auth.getSession();
-      } catch (e) {}
+    try {
+      await supabase.auth.getSession();
+    } catch (e) {}
       if (checkout === "success" && sessionId) {
         setBanner({ kind: "info", text: "Confirming your payment…" });
         try {
@@ -987,10 +1022,28 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
         } catch (e) {}
         setBanner({ kind: "warn", text: "Payment cancelled — your request was not submitted." });
       }
-      clean();
+      if (cleanUrl) window.history.replaceState({}, "", window.location.pathname);
       await loadData();
       setScreen("requests");
-    })();
+  };
+
+  useEffect(() => {
+    processCheckoutParams(new URLSearchParams(window.location.search), true);
+  }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let listener;
+    CapacitorApp.addListener("appUrlOpen", ({ url }) => {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol === "diasporadirect:" && parsed.host === "checkout") {
+          Browser.close().catch(() => {});
+          processCheckoutParams(parsed.searchParams);
+        }
+      } catch (e) {}
+    }).then((handle) => { listener = handle; });
+    return () => { if (listener) listener.remove(); };
   }, []);
 
   const loadMessages = async (requestId) => {
@@ -1021,6 +1074,20 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     onSignOut();
   };
 
+  const handleDeleteAccount = async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Please sign in again before deleting your account.");
+    const response = await fetch(apiUrl("/api/delete-account"), {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "We could not delete your account. Please contact support.");
+    await supabase.auth.signOut();
+    onSignOut();
+  };
+
   const handleCreate = async ({ service, title, city, notes, fee, payMethod }) => {
     const initialStatus = payMethod === "card" ? "pending_payment" : "awaiting_transfer";
     const { data, error } = await supabase.from("requests").insert({
@@ -1032,10 +1099,14 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
       try {
         const resp = await fetch(apiUrl("/api/create-checkout-session"), {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId: data.id, title, fee }),
+          body: JSON.stringify({ requestId: data.id, title, fee, mobile: Capacitor.isNativePlatform() }),
         });
         const json = await resp.json();
-        if (json.url) { window.location.href = json.url; return; }
+        if (json.url) {
+          if (Capacitor.isNativePlatform()) await Browser.open({ url: json.url });
+          else window.location.href = json.url;
+          return;
+        }
       } catch (e) {}
       await supabase.from("requests").update({ status: "cancelled" }).eq("id", data.id);
       setScreen("home");
@@ -1096,7 +1167,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     else if (screen === "detail" && selected) body = <RequestDetail request={selected} goto={goto} onSendMessage={handleSendMessage} />;
     else if (screen === "requests") body = <ClientRequests requests={requests} goto={goto} />;
     else if (screen === "payinfo") body = <PayInstructions request={selected} goto={goto} onConfirmSent={handleConfirmSent} />;
-    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
+    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} onDeleteAccount={handleDeleteAccount} />;
     else body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} profile={profile} />;
   } else {
     if (screen === "home") body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
@@ -1105,7 +1176,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
       body = <AgentTask request={task} goto={goto} onAccept={handleAccept} onAdvance={handleAdvance} />;
     }
     else if (screen === "earnings") body = <AgentEarnings mine={requests} />;
-    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
+    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} onDeleteAccount={handleDeleteAccount} />;
     else body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
   }
 

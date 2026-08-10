@@ -27,6 +27,7 @@ Open the native projects with `npm run mobile:android` or `npm run mobile:ios`.
 - Declare that payments are for real-world services, not digital content.
 - Complete the content rating, target audience, ads, financial features, and account-deletion declarations.
 - Add the public privacy-policy URL: `https://app.diaspora-direct.com/privacy.html`.
+- Add the public account-deletion URL: `https://app.diaspora-direct.com/delete-account.html`.
 - Upload a signed Android App Bundle (`.aab`) to Internal testing first.
 - Add final icon, feature graphic, phone screenshots, short description, and full description.
 
@@ -37,7 +38,7 @@ Open the native projects with `npm run mobile:android` or `npm run mobile:ios`.
 - Add the privacy-policy URL and support URL.
 - Explain in Review Notes that payments purchase real-world concierge/errand services and therefore use Stripe rather than in-app purchase.
 - Provide a working reviewer account and clear steps to reach client and agent functionality.
-- Add the account-deletion route or reviewer instructions before submission.
+- Account deletion is available at Profile > Delete account; include that path in reviewer instructions.
 - Upload with Xcode Organizer to TestFlight first, complete export-compliance questions, then test on a physical iPhone.
 - Add screenshots for every required device class, app description, keywords, category, age rating, copyright, and support contact.
 
@@ -49,7 +50,7 @@ Open the native projects with `npm run mobile:android` or `npm run mobile:ios`.
 - Store listing copy, screenshots, final 1024x1024 icon, and Google feature graphic
 - Reviewer credentials for both client and agent roles
 - A solicitor-reviewed privacy policy and terms
-- A tested in-app account-deletion flow and public deletion-request page
-- A production-tested native Stripe return/deep-link flow
+- Add `SUPABASE_SERVICE_ROLE_KEY` and `APP_PUBLIC_URL` to Vercel, then test account deletion using a disposable account
+- Production-test the native Stripe return/deep-link flow on physical Android and iPhone devices
 
 Never commit signing keys, service-account JSON, `.env` files, or store credentials.
