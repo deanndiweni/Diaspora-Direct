@@ -606,7 +606,7 @@ function ClientProfile({ setRole, profile }) {
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 4 }}>WhatsApp support</div>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: C.charcoalSoft }}>+44 7778 392915</div>
         </Card>
-        <Button variant="ghost" full onClick={() => setRole("agent")}>Sign out</Button>
+        <Card><div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 8 }}>Legal</div><div style={{ display: "flex", gap: 16 }}><a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Terms of Service</a><a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Privacy Policy</a></div></Card><Button variant="ghost" full onClick={() => setRole("agent")}>Sign out</Button>
       </div>
     </div>
   );
