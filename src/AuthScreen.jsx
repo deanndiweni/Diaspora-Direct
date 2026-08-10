@@ -66,6 +66,9 @@ export default function AuthScreen({ onAuthed }) {
         <div style={{ fontFamily: "'Spectral', serif", fontSize: 22, fontWeight: 700, color: C.charcoal, marginBottom: 4 }}>
           Diaspora Direct
         </div>
+        <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, color: C.teal, marginBottom: 6 }}>
+          On-the-Ground Help You Can Trust
+        </div>
         <div style={{ fontSize: 13, color: C.charcoalSoft, marginBottom: 20 }}>
           {mode === "login" ? "Log in to your account" : "Create your account"}
         </div>
