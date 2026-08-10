@@ -110,9 +110,9 @@ function StatusPill({ status }) {
     requested: { bg: "#F1E7D1", fg: "#8A6A21", label: "Requested" },
     assigned: { bg: "#DCEAE6", fg: C.teal, label: "Assigned" },
     in_progress: { bg: "#FCEBD5", fg: "#B0701A", label: "In progress" },
-    completed: { bg: "#E3EFE0", fg: "#3E7A3A", label: "Completed" },
+    completed: { bg: "#E3EFE0", fg: "#3E7A3A", label: "Completed" }, cancelled: { bg: "#F3E3E3", fg: "#B33A3A", label: "Cancelled" }, refunded: { bg: "#EDE9F2", fg: "#5C4E7A", label: "Refunded" },
   };
-  const s = map[status];
+  const s = map[status] || { bg: "#ECE7DA", fg: "#6B7264", label: String(status || "unknown").replace(/_/g, " ") };
   return (
     <span
       style={{
