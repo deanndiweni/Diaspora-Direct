@@ -92,7 +92,7 @@ export default function AuthScreen({ onAuthed }) {
         {error && <div style={{ color: C.alert, fontSize: 13, marginBottom: 12 }}>{error}</div>}
         {info && <div style={{ color: C.teal, fontSize: 13, marginBottom: 12 }}>{info}</div>}
 
-        <button type="submit" disabled={loading} style={{
+        {mode === "signup" && (<div style={{ fontSize: 12, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.5 }}>By creating an account you agree to our <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Terms of Service</a> and <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Privacy Policy</a>.</div>)}        <button type="submit" disabled={loading} style={{
           width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: C.marigold,
           color: "#3A2A00", fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 14,
         }}>
