@@ -110,7 +110,7 @@ function StatusPill({ status }) {
     requested: { bg: "#F1E7D1", fg: "#8A6A21", label: "Requested" },
     assigned: { bg: "#DCEAE6", fg: C.teal, label: "Assigned" },
     in_progress: { bg: "#FCEBD5", fg: "#B0701A", label: "In progress" },
-    completed: { bg: "#E3EFE0", fg: "#3E7A3A", label: "Completed" }, cancelled: { bg: "#F3E3E3", fg: "#B33A3A", label: "Cancelled" }, refunded: { bg: "#EDE9F2", fg: "#5C4E7A", label: "Refunded" },
+    completed: { bg: "#E3EFE0", fg: "#3E7A3A", label: "Completed" }, cancelled: { bg: "#F3E3E3", fg: "#B33A3A", label: "Cancelled" }, refunded: { bg: "#EDE9F2", fg: "#5C4E7A", label: "Refunded" }, pending_payment: { bg: "#F1E7D1", fg: "#8A6A21", label: "Awaiting payment" }, awaiting_transfer: { bg: "#F1E7D1", fg: "#8A6A21", label: "Awaiting transfer" }, payment_review: { bg: "#E7E9F2", fg: "#41527A", label: "Checking payment" },
   };
   const s = map[status] || { bg: "#ECE7DA", fg: "#6B7264", label: String(status || "unknown").replace(/_/g, " ") };
   return (
@@ -320,7 +320,7 @@ function ClientHome({ requests, goto, setRole, profile }) {
         </div>
       )}
       {active.map((r) => (
-        <Card key={r.id} onClick={() => goto("detail", r.id)}>
+        <Card key={r.id} onClick={() => goto(r.status === "awaiting_transfer" || r.status === "payment_review" ? "payinfo" : "detail", r.id)}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: C.charcoalSoft }}>{r.id}</div>
@@ -353,11 +353,83 @@ const SERVICE_FEES = {
   property: 15, family: 12, errand: 10, urgent: 35, documents: 20, funeral: 25,
 };
 
+const WISE = { name: import.meta.env.VITE_WISE_ACCOUNT_NAME || "", bank: import.meta.env.VITE_WISE_BANK_NAME || "", account: import.meta.env.VITE_WISE_ACCOUNT_NUMBER || "", sort: import.meta.env.VITE_WISE_SORT_CODE || "", iban: import.meta.env.VITE_WISE_IBAN || "", bic: import.meta.env.VITE_WISE_BIC || "" };
+const PAYPAL_LINK = import.meta.env.VITE_PAYPAL_LINK || "";
+const payRef = (id) => "DD-" + String(id || "").replace(/-/g, "").slice(0, 6).toUpperCase();
+
 const PAY_METHODS = [
   { id: "card", label: "Card" },
-  { id: "whatsapp", label: "WhatsApp Pay" },
+  { id: "paypal", label: "PayPal" },
   { id: "bank", label: "Bank transfer" },
 ];
+
+function PayInstructions({ request, goto, onConfirmSent }) {
+  if (!request) return null;
+  const reference = payRef(request.id);
+  const isBank = request.payMethod === "bank";
+  const sent = request.status === "payment_review";
+  const configured = isBank ? Boolean(WISE.account || WISE.iban) : Boolean(PAYPAL_LINK);
+  const row = (k, v) => (
+    <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderBottom: `1px solid ${C.line}` }}>
+      <span style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft }}>{k}</span>
+      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: C.charcoal, textAlign: "right" }}>{v}</span>
+    </div>
+  );
+  return (
+    <div>
+      <TopBar title={isBank ? "Bank transfer" : "Pay with PayPal"} onBack={() => goto("requests")} />
+      <div style={{ padding: 16 }}>
+        <Card>
+          <div style={{ fontFamily: "'Spectral', serif", fontSize: 18, fontWeight: 700, color: C.charcoal }}>{"\u00A3"}{request.fee}.00 to pay</div>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginBottom: 12 }}>{request.title}</div>
+          <div style={{ background: C.tealLight, borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft }}>Your payment reference, please include it</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 19, fontWeight: 700, color: C.tealDark, letterSpacing: 1 }}>{reference}</div>
+          </div>
+        </Card>
+        {!configured ? (
+          <Card>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.alert, lineHeight: 1.6 }}>
+              This payment method is not set up yet. Please email hello@diaspora-direct.com and we will arrange payment another way.
+            </div>
+          </Card>
+        ) : isBank ? (
+          <Card>
+            <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 700, color: C.charcoal, marginBottom: 6 }}>Send the money to</div>
+            {WISE.name && row("Account name", WISE.name)}
+            {WISE.bank && row("Bank", WISE.bank)}
+            {WISE.account && row("Account number", WISE.account)}
+            {WISE.sort && row("Sort code", WISE.sort)}
+            {WISE.iban && row("IBAN", WISE.iban)}
+            {WISE.bic && row("BIC or SWIFT", WISE.bic)}
+          </Card>
+        ) : (
+          <Card>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 10, lineHeight: 1.6 }}>
+              Open PayPal, send {"\u00A3"}{request.fee}.00 and put {reference} in the note so we can match it to your errand.
+            </div>
+            <a href={PAYPAL_LINK} target="_blank" rel="noopener noreferrer" style={{ display: "block", textAlign: "center", padding: "12px 16px", borderRadius: 10, background: C.tealDark, color: "#fff", fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>Open PayPal</a>
+          </Card>
+        )}
+        <Card>
+          {sent ? (
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, lineHeight: 1.6 }}>
+              Thank you. We are checking for your payment. Your errand goes out to agents as soon as it lands.
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginBottom: 10, lineHeight: 1.6 }}>
+                Once the money has left your account, let us know. We check every payment by hand, and your errand only goes out to agents after it arrives.
+              </div>
+              <Button full disabled={!configured} onClick={() => onConfirmSent(request.id)}>Confirm transfer complete</Button>
+            </div>
+          )}
+        </Card>
+        <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.charcoalSoft, textAlign: "center" }}>Keep reference {reference} for your records</div>
+      </div>
+    </div>
+  );
+}
 
 function NewRequest({ presetService, onCreate, goto }) {
   const [service, setService] = useState(presetService || SERVICES[0].id);
@@ -571,7 +643,7 @@ function ClientRequests({ requests, goto }) {
       <TopBar title="My requests" />
       <div style={{ padding: 16 }}>
         {requests.map((r) => (
-          <Card key={r.id} onClick={() => goto("detail", r.id)}>
+          <Card key={r.id} onClick={() => goto(r.status === "awaiting_transfer" || r.status === "payment_review" ? "payinfo" : "detail", r.id)}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: C.charcoalSoft }}>{r.id}</div>
@@ -614,7 +686,22 @@ function ClientProfile({ setRole, profile }) {
 
 // ---------- Agent screens ----------
 
-function AgentHome({ queue, mine, goto, setRole }) {
+function AgentHome({ queue, mine, goto, setRole, approved }) {
+  if (approved === false) {
+    return (
+      <div>
+        <TopBar title="Task queue" />
+        <div style={{ padding: 16 }}>
+          <Card>
+            <div style={{ fontFamily: "'Spectral', serif", fontSize: 16, fontWeight: 700, color: C.charcoal, marginBottom: 6 }}>Your agent account is awaiting approval</div>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, lineHeight: 1.6 }}>
+              We check every agent before they can take on errands for families. No tasks will appear here until that is done. If you have questions, email hello@diaspora-direct.com.
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
   return (
     <div>
       <TopBar title="Task queue" />
@@ -716,7 +803,66 @@ function AgentTask({ request, goto, onAccept, onAdvance }) {
   );
 }
 
-function AgentEarnings() {
+function AgentEarnings({ mine }) {
+  const done = (mine || []).filter((r) => r.status === "completed");
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7;
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+  const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
+  const inWeek = done.filter((r) => r.completedAt && new Date(r.completedAt) >= weekStart && !r.paidOutAt);
+  const unpaid = done.filter((r) => !r.paidOutAt);
+  const total = (a) => a.reduce((t, r) => t + Number(r.agentFee || 0), 0);
+  const owed = total(inWeek);
+  const balance = total(unpaid);
+  const lifetime = total(done);
+  const missing = done.filter((r) => !r.agentFee).length;
+  const money = (n) => "\u00A3" + Number(n || 0).toFixed(2);
+  const payday = weekEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "center" };
+  const labelStyle = { fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal };
+  const numStyle = { fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: C.charcoal };
+  return (
+    <div>
+      <TopBar title="Earnings" />
+      <div style={{ padding: 16 }}>
+        <Card style={{ textAlign: "center", padding: 22 }}>
+          <Wallet size={22} color={C.teal} style={{ marginBottom: 6 }} />
+          <div style={{ fontFamily: "'Spectral', serif", fontSize: 26, fontWeight: 700, color: C.charcoal }}>{money(owed)}</div>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft }}>Due to you at the end of this payroll week, {payday}</div>
+        </Card>
+        <Card style={rowStyle}>
+          <span style={labelStyle}>Unpaid balance, all weeks</span>
+          <span style={numStyle}>{money(balance)}</span>
+        </Card>
+        <Card style={rowStyle}>
+          <span style={labelStyle}>Errands completed, all time</span>
+          <span style={numStyle}>{done.length} &middot; {money(lifetime)}</span>
+        </Card>
+        {missing > 0 && (
+          <Card>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, lineHeight: 1.6 }}>
+              {missing} completed errand{missing === 1 ? " has" : "s have"} no fee set yet. Diaspora Direct sets the fee for each errand once the work is checked.
+            </div>
+          </Card>
+        )}
+        <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "18px 0 8px", color: C.charcoal }}>This payroll week</div>
+        {inWeek.length === 0 && (
+          <Card>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>Nothing completed yet this week.</div>
+          </Card>
+        )}
+        {inWeek.map((r) => (
+          <Card key={r.id} style={rowStyle}>
+            <span style={labelStyle}>{r.title}</span>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: C.charcoalSoft }}>{r.agentFee ? money(r.agentFee) : "fee pending"}</span>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgentEarningsLegacy() {
   return (
     <div>
       <TopBar title="Earnings" />
@@ -758,6 +904,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     id: r.id, service: r.category, title: r.title, country: r.country || "Zimbabwe", city: r.city,
     status: r.status, agent: r.agent_id ? ((names && names[r.agent_id]) || "Assigned agent") : null,
     agentId: r.agent_id, notes: r.description, fee: r.fee, payMethod: r.pay_method, paid: true,
+    agentFee: r.agent_fee, completedAt: r.completed_at, paidOutAt: r.paid_out_at,
     messages: [], log: buildLog(r.status),
   });
 
@@ -872,7 +1019,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
   };
 
   const handleCreate = async ({ service, title, city, notes, fee, payMethod }) => {
-    const initialStatus = payMethod === "card" ? "pending_payment" : "requested";
+    const initialStatus = payMethod === "card" ? "pending_payment" : "awaiting_transfer";
     const { data, error } = await supabase.from("requests").insert({
       client_id: profile.id, category: service, title, city, country: "Zimbabwe",
       description: notes, fee, pay_method: payMethod, status: initialStatus,
@@ -892,7 +1039,16 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
       return;
     }
     setRequests((r) => [{ ...mapRequestRow(data, agentNames), agent: null }, ...r]);
+    setSelectedId(data.id);
+    setScreen("payinfo");
+    return;
     setScreen("home");
+  };
+
+  const handleConfirmSent = async (id) => {
+    await supabase.from("requests").update({ status: "payment_review" }).eq("id", id);
+    setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, status: "payment_review" } : r)));
+    setBanner({ kind: "success", text: "Thank you. We will confirm your payment by hand shortly." });
   };
 
   const handleSendMessage = async (id, text) => {
@@ -936,17 +1092,18 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     else if (screen === "new") body = <NewRequest presetService={presetService} onCreate={handleCreate} goto={goto} />;
     else if (screen === "detail" && selected) body = <RequestDetail request={selected} goto={goto} onSendMessage={handleSendMessage} />;
     else if (screen === "requests") body = <ClientRequests requests={requests} goto={goto} />;
+    else if (screen === "payinfo") body = <PayInstructions request={selected} goto={goto} onConfirmSent={handleConfirmSent} />;
     else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
     else body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} profile={profile} />;
   } else {
-    if (screen === "home") body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} />;
+    if (screen === "home") body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
     else if (screen === "task") {
       const task = requests.find((r) => r.id === selectedId) || queue.find((r) => r.id === selectedId);
       body = <AgentTask request={task} goto={goto} onAccept={handleAccept} onAdvance={handleAdvance} />;
     }
-    else if (screen === "earnings") body = <AgentEarnings />;
+    else if (screen === "earnings") body = <AgentEarnings mine={requests} />;
     else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
-    else body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} />;
+    else body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
   }
 
   const clientTabs = [
