@@ -741,6 +741,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
   const role = profile.role;
   const [screen, setScreen] = useState("home");
   const [selectedId, setSelectedId] = useState(null);
+  const [banner, setBanner] = useState(null);
   const [presetService, setPresetService] = useState(null);
   const [requests, setRequests] = useState([]);
   const [queue, setQueue] = useState([]);
@@ -810,7 +811,11 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     const sessionId = params.get("session_id");
     const clean = () => window.history.replaceState({}, "", window.location.pathname);
     (async () => {
+      try {
+        await supabase.auth.getSession();
+      } catch (e) {}
       if (checkout === "success" && sessionId) {
+        setBanner({ kind: "info", text: "Confirming your payment…" });
         try {
           const resp = await fetch("/api/verify-checkout", {
             method: "POST", headers: { "Content-Type": "application/json" },
@@ -819,13 +824,22 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
           const json = await resp.json();
           if (json.paid && requestId) {
             await supabase.from("requests").update({ status: "requested" }).eq("id", requestId);
+            setBanner({ kind: "success", text: "Payment received — your request is now live. An agent will pick it up shortly." });
+          } else {
+            setBanner({ kind: "warn", text: "We couldn't confirm your payment yet. If you were charged, it will appear here shortly — no need to pay again." });
           }
-        } catch (e) {}
+        } catch (e) {
+          setBanner({ kind: "warn", text: "We couldn't confirm your payment yet. If you were charged, it will appear here shortly — no need to pay again." });
+        }
       } else if (checkout === "cancel" && requestId) {
-        await supabase.from("requests").update({ status: "cancelled" }).eq("id", requestId);
+        try {
+          await supabase.from("requests").update({ status: "cancelled" }).eq("id", requestId);
+        } catch (e) {}
+        setBanner({ kind: "warn", text: "Payment cancelled — your request was not submitted." });
       }
       clean();
-      loadData();
+      await loadData();
+      setScreen("requests");
     })();
   }, []);
 
@@ -951,6 +965,14 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
   return (
     <div style={{ minHeight: "100vh", background: "#EAE3D2", fontFamily: "'Work Sans', sans-serif", display: "flex", justifyContent: "center" }}>
       <style>{FONTS}</style>
+      {banner && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ margin: 8, maxWidth: 464, width: "calc(100% - 16px)", padding: "12px 14px", borderRadius: 12, fontFamily: "'Work Sans', sans-serif", fontSize: 14, boxShadow: "0 6px 20px rgba(0,0,0,0.15)", pointerEvents: "auto", background: banner.kind === "success" ? "#123d1f" : banner.kind === "warn" ? "#5a3a0a" : "#1f2937", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span>{banner.text}</span>
+            <button onClick={() => setBanner(null)} style={{ background: "transparent", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+          </div>
+        </div>
+      )}
       <div
         style={{
           width: "100%", maxWidth: 480, minHeight: "100vh", background: C.sand,
