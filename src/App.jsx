@@ -924,6 +924,124 @@ function AgentEarningsLegacy() {
 
 // ---------- App shell ----------
 
+function AdminHome({ setRole }) {
+const [pendingAgents, setPendingAgents] = useState([]);
+const [recentRequests, setRecentRequests] = useState([]);
+const [loading, setLoading] = useState(true);
+const [actionError, setActionError] = useState("");
+const [busyId, setBusyId] = useState(null);
+
+const loadAdminData = async () => {
+setLoading(true);
+const { data: agentsData } = await supabase.from("agents").select("*").eq("approved", false).order("created_at", { ascending: false });
+const rows = agentsData || [];
+const profileIds = [...new Set(rows.map((a) => a.profile_id).filter(Boolean))];
+let namesById = {};
+if (profileIds.length) {
+const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", profileIds);
+(profs || []).forEach((p) => { namesById[p.id] = p; });
+}
+setPendingAgents(rows.map((a) => ({ ...a, profileInfo: namesById[a.profile_id] })));
+
+const { data: reqData } = await supabase.from("requests").select("*").order("created_at", { ascending: false }).limit(20);
+setRecentRequests(reqData || []);
+setLoading(false);
+};
+
+useEffect(() => { loadAdminData(); }, []);
+
+const approveAgent = async (agentId) => {
+setBusyId(agentId);
+setActionError("");
+try {
+const { data } = await supabase.auth.getSession();
+const token = data.session?.access_token;
+if (!token) throw new Error("Please sign in again.");
+const resp = await fetch(apiUrl("/api/admin-approve-agent"), {
+method: "POST",
+headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+body: JSON.stringify({ agentId, approve: true }),
+});
+const json = await resp.json().catch(() => ({}));
+if (!resp.ok) throw new Error(json.error || "We could not approve this agent.");
+setPendingAgents((rows) => rows.filter((a) => a.id !== agentId));
+} catch (error) {
+setActionError(error.message || "We could not approve this agent.");
+} finally {
+setBusyId(null);
+}
+};
+
+return (
+<div>
+<TopBar title="Admin" />
+<div style={{ padding: 16 }}>
+<div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, marginBottom: 8, color: C.charcoal }}>
+Agents awaiting approval
+</div>
+{loading && <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>Loading…</div>}
+{!loading && pendingAgents.length === 0 && (
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 16 }}>
+No agents waiting right now.
+</div>
+)}
+{pendingAgents.map((a) => (
+<Card key={a.id}>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+<div>
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal }}>
+{a.profileInfo?.full_name || "Unnamed agent"}
+</div>
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft }}>
+{a.profileInfo?.email || ""}
+</div>
+</div>
+<Button variant="dark" disabled={busyId === a.id} onClick={() => approveAgent(a.id)}>
+{busyId === a.id ? "Approving…" : "Approve"}
+</Button>
+</div>
+</Card>
+))}
+{actionError && (
+<div role="alert" style={{ color: C.alert, fontFamily: "'Work Sans', sans-serif", fontSize: 12, marginBottom: 12 }}>
+{actionError}
+</div>
+)}
+
+<div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "18px 0 8px", color: C.charcoal }}>
+Recent requests
+</div>
+{recentRequests.length === 0 && (
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No requests yet.</div>
+)}
+{recentRequests.map((r) => (
+<Card key={r.id}>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+<div>
+<div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: C.charcoalSoft }}>{r.id}</div>
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal, marginTop: 2 }}>
+{r.title}
+</div>
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft, marginTop: 2 }}>
+{r.city}, {r.country}
+</div>
+</div>
+<StatusPill status={r.status} />
+</div>
+</Card>
+))}
+
+<button
+onClick={() => setRole("client")}
+style={{ marginTop: 10, background: "none", border: "none", color: C.charcoalSoft, fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, textDecoration: "underline", cursor: "pointer" }}
+>
+Sign out
+</button>
+</div>
+</div>
+);
+}
+
 export default function DiasporaDirectApp({ profile, onSignOut }) {
   const role = profile.role;
   const [screen, setScreen] = useState("home");
@@ -980,7 +1098,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
       const names = await loadAgentNames(rows);
       setAgentNames(names);
       setRequests(rows.map((r) => mapRequestRow(r, names)));
-    } else {
+    } else if (role === "agent") {
       const agent = await loadAgentRow();
       const { data: unclaimed } = await supabase.from("requests").select("*").eq("status", "requested").is("agent_id", null).order("created_at", { ascending: false });
       const mineRes = agent ? await supabase.from("requests").select("*").eq("agent_id", agent.id).order("created_at", { ascending: false }) : { data: [] };
@@ -1169,7 +1287,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     else if (screen === "payinfo") body = <PayInstructions request={selected} goto={goto} onConfirmSent={handleConfirmSent} />;
     else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} onDeleteAccount={handleDeleteAccount} />;
     else body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} profile={profile} />;
-  } else {
+  } else if (role === "agent") {
     if (screen === "home") body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
     else if (screen === "task") {
       const task = requests.find((r) => r.id === selectedId) || queue.find((r) => r.id === selectedId);
@@ -1178,7 +1296,9 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     else if (screen === "earnings") body = <AgentEarnings mine={requests} />;
     else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} onDeleteAccount={handleDeleteAccount} />;
     else body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
-  }
+  } else {
+  body = <AdminHome setRole={handleSwitchRole} />;
+}
 
   const clientTabs = [
     { id: "home", icon: Home, label: "Home" },
@@ -1191,7 +1311,10 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     { id: "earnings", icon: Wallet, label: "Earnings" },
     { id: "profile", icon: User, label: "Profile" },
   ];
-  const tabs = role === "client" ? clientTabs : agentTabs;
+  const adminTabs = [
+{ id: "home", icon: ShieldCheck, label: "Admin" },
+];
+const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : agentTabs;
 
   return (
     <div style={{ minHeight: "100vh", background: "#EAE3D2", fontFamily: "'Work Sans', sans-serif", display: "flex", justifyContent: "center" }}>
@@ -1223,7 +1346,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
             <span style={{ color: "#fff", fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 700 }}>Diaspora Direct</span>
           </div>
           <span style={{ color: "rgba(255,255,255,0.75)", fontFamily: "'Work Sans', sans-serif", fontSize: 11 }}>
-            {role === "client" ? "Client" : "Agent"}
+            {role === "client" ? "Client" : role === "admin" ? "Admin" : "Agent"}
           </span>
         </div>
 
@@ -1270,3 +1393,5 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     </div>
   );
 }
+
+Stop Claude
