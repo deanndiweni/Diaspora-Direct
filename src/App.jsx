@@ -948,7 +948,11 @@ setRecentRequests(reqData || []);
 setLoading(false);
 };
 
-useEffect(() => { loadAdminData(); }, []);
+useEffect(() => {
+    loadAdminData();
+    const intervalId = setInterval(loadAdminData, 30000);
+    return () => clearInterval(intervalId);
+  }, []);
 
 const approveAgent = async (agentId) => {
 setBusyId(agentId);
@@ -1008,8 +1012,17 @@ No agents waiting right now.
 </div>
 )}
 
-<div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "18px 0 8px", color: C.charcoal }}>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "18px 0 8px" }}>
+<div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, color: C.charcoal }}>
 Recent requests
+</div>
+<button
+onClick={loadAdminData}
+disabled={loading}
+style={{ background: "transparent", border: `1px solid ${C.teal}`, color: C.teal, borderRadius: 8, padding: "6px 12px", fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 12, cursor: loading ? "default" : "pointer" }}
+>
+{loading ? "Refreshing…" : "Refresh"}
+</button>
 </div>
 {recentRequests.length === 0 && (
 <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No requests yet.</div>
