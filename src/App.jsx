@@ -1393,5 +1393,3 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
     </div>
   );
 }
-
-Stop Claude
