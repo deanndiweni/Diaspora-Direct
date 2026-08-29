@@ -101,7 +101,6 @@ export default function AuthScreen({ onAuthed }) {
 
         <div style={{ fontSize: 12, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.5, textAlign: "center" }}>
           <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Terms &amp; Conditions</a>
-          <span aria-hidden="true"> Â· </span>
           <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Privacy Policy</a>
         </div>
         <button type="submit" disabled={loading} style={{
