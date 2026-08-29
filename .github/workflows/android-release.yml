@@ -1,0 +1,95 @@
+name: Android Release Build
+
+# Builds a signed release Android App Bundle (.aab) for the Play Store.
+#
+# Requires these repo secrets (Settings -> Secrets and variables -> Actions):
+#   ANDROID_KEYSTORE_BASE64   base64-encoded contents of your release .keystore/.jks file
+#   ANDROID_KEYSTORE_PASSWORD the keystore's password
+#   ANDROID_KEY_ALIAS         the alias of the signing key inside the keystore
+#   ANDROID_KEY_PASSWORD      the signing key's password (often same as keystore password)
+#
+# See README.md / RELEASE.md for how to generate the keystore and add these secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: "Version name shown to users (e.g. 1.0.0)"
+        required: false
+        default: "1.0.0"
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.json"
+      - ".github/workflows/android-release.yml"
+
+jobs:
+  build:
+    name: Build signed AAB
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Decode release keystore
+        working-directory: android/app
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+
+      - name: Write keystore.properties
+        working-directory: android
+        run: |
+          cat > keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Grant execute permission for gradlew
+        working-directory: android
+        run: chmod +x gradlew
+
+      - name: Build release AAB
+        working-directory: android
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: ${{ github.event.inputs.versionName }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Clean up signing material
+        if: always()
+        working-directory: android
+        run: rm -f app/release.keystore keystore.properties
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
