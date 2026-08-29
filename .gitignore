@@ -8,6 +8,7 @@ dist/
 *.jks
 *.p12
 *.mobileprovision
+keystore.properties
 android/.gradle/
 android/local.properties
 android/app/build/
