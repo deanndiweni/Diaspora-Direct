@@ -927,6 +927,7 @@ function AgentEarningsLegacy() {
 function AdminHome({ setRole }) {
 const [pendingAgents, setPendingAgents] = useState([]);
 const [recentRequests, setRecentRequests] = useState([]);
+const [clients, setClients] = useState([]);
 const [loading, setLoading] = useState(true);
 const [actionError, setActionError] = useState("");
 const [busyId, setBusyId] = useState(null);
@@ -945,6 +946,14 @@ setPendingAgents(rows.map((a) => ({ ...a, profileInfo: namesById[a.profile_id] }
 
 const { data: reqData } = await supabase.from("requests").select("*").order("created_at", { ascending: false }).limit(20);
 setRecentRequests(reqData || []);
+
+const { data: clientProfiles } = await supabase.from("profiles").select("id, full_name, email, phone, created_at").eq("role", "client").order("full_name", { ascending: true });
+const { data: allClientRequests } = await supabase.from("requests").select("client_id");
+const requestCounts = {};
+(allClientRequests || []).forEach((r) => {
+if (r.client_id) requestCounts[r.client_id] = (requestCounts[r.client_id] || 0) + 1;
+});
+setClients((clientProfiles || []).map((c) => ({ ...c, requestCount: requestCounts[c.id] || 0 })));
 setLoading(false);
 };
 
@@ -1011,6 +1020,31 @@ No agents waiting right now.
 {actionError}
 </div>
 )}
+<div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "18px 0 8px", color: C.charcoal }}>
+Clients ({clients.length})
+</div>
+{!loading && clients.length === 0 && (
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 16 }}>
+No registered clients yet.
+</div>
+)}
+{clients.map((c) => (
+<Card key={c.id}>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+<div>
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal }}>
+{c.full_name || "Unnamed client"}
+</div>
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft }}>
+{c.email}{c.phone ? ` Â· ${c.phone}` : ""}
+</div>
+</div>
+<div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: C.charcoalSoft }}>
+{c.requestCount} {c.requestCount === 1 ? "request" : "requests"}
+</div>
+</div>
+</Card>
+))}
 
 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "18px 0 8px" }}>
 <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, color: C.charcoal }}>
