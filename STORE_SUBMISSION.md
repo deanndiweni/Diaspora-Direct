@@ -38,7 +38,7 @@ Open the native projects with `npm run mobile:android` or `npm run mobile:ios`.
 - Add the privacy-policy URL and support URL.
 - Explain in Review Notes that payments purchase real-world concierge/errand services and therefore use Stripe rather than in-app purchase.
 - Provide a working reviewer account and clear steps to reach client and agent functionality.
-- Account deletion is available at Profile > Delete account; include that path in reviewer instructions.
+- Account deletion is available at Profile > Account deletion help, which links to the public account-deletion request page; there is no in-app self-service delete button, deletion requests are actioned by an admin from the Admin panel's Clients list. Include this path and, if useful, a test admin login in reviewer instructions.
 - Upload with Xcode Organizer to TestFlight first, complete export-compliance questions, then test on a physical iPhone.
 - Add screenshots for every required device class, app description, keywords, category, age rating, copyright, and support contact.
 
