@@ -988,6 +988,30 @@ setBusyId(null);
 }
 };
 
+const deleteClientAccount = async (clientId) => {
+const confirmed = window.confirm("Permanently delete this client's account and associated data? This cannot be undone.");
+if (!confirmed) return;
+setBusyId(clientId);
+setActionError("");
+try {
+const { data } = await supabase.auth.getSession();
+const token = data.session?.access_token;
+if (!token) throw new Error("Please sign in again.");
+const resp = await fetch(apiUrl("/api/admin-delete-account"), {
+method: "POST",
+headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+body: JSON.stringify({ clientId }),
+});
+const json = await resp.json().catch(() => ({}));
+if (!resp.ok) throw new Error(json.error || "We could not delete this account.");
+setClients((rows) => rows.filter((c) => c.id !== clientId));
+} catch (error) {
+setActionError(error.message || "We could not delete this account.");
+} finally {
+setBusyId(null);
+}
+};
+
 return (
 <div>
 <TopBar title="Admin" />
@@ -1046,6 +1070,7 @@ No registered clients yet.
 {c.requestCount} {c.requestCount === 1 ? "request" : "requests"}
 </div>
 </div>
+<button type="button" onClick={() => deleteClientAccount(c.id)} disabled={busyId === c.id} style={{ marginTop: 10, width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.alert}`, background: "transparent", color: C.alert, fontFamily: "'Work Sans', sans-serif", fontSize: 12, fontWeight: 600, cursor: busyId === c.id ? "default" : "pointer", opacity: busyId === c.id ? 0.6 : 1 }}>{busyId === c.id ? "Deleting…" : "Delete account"}</button>
 </Card>
 ))}
 
