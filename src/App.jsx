@@ -1036,7 +1036,7 @@ No registered clients yet.
 {c.full_name || "Unnamed client"}
 </div>
 <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft }}>
-{c.email}{c.phone ? ` Â· ${c.phone}` : ""}
+{c.email}{c.phone ? ` · ${c.phone}` : ""}
 </div>
 </div>
 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: C.charcoalSoft }}>
