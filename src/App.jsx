@@ -605,6 +605,16 @@ function RequestDetail({ request, goto, onSendMessage }) {
         <div style={{ fontFamily: "'Spectral', serif", fontSize: 14, fontWeight: 600, margin: "14px 0 8px", color: C.charcoal }}>
           Messages
         </div>
+        {request.agentPhone && (
+          <a
+            href={`https://wa.me/${request.agentPhone.replace(/[^0-9]/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "flex", alignItems: "center", gap: 6, color: "#25D366", fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, fontWeight: 600, marginBottom: 10, textDecoration: "none" }}
+          >
+            <MessageCircle size={15} /> Message on WhatsApp
+          </a>
+        )}
         <div style={{ marginBottom: 10 }}>
           {request.messages.length === 0 && (
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No messages yet.</div>
@@ -711,6 +721,14 @@ function ClientProfile({ setRole, profile, onDeleteAccount }) {
           </div>
         </Card>
         <Button variant="ghost" full onClick={() => setRole("agent")}>Sign out</Button>
+        <a
+          href="https://wa.me/447778392915"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", marginTop: 10, padding: "12px 0", borderRadius: 10, border: "1px solid " + C.line, color: "#25D366", fontFamily: "'Work Sans', sans-serif", fontSize: 13, fontWeight: 600, textDecoration: "none", boxSizing: "border-box" }}
+        >
+          <MessageCircle size={15} /> Chat with us on WhatsApp
+        </a>
         <button
           type="button"
           onClick={confirmDelete}
@@ -823,6 +841,17 @@ function AgentTask({ request, goto, onAccept, onAdvance }) {
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft, marginBottom: 4 }}>Client notes</div>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal }}>{request.notes}</div>
         </Card>
+
+        {request.clientPhone && (
+          <a
+            href={`https://wa.me/${request.clientPhone.replace(/[^0-9]/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "flex", alignItems: "center", gap: 6, color: "#25D366", fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, fontWeight: 600, margin: "0 0 10px" }}
+          >
+            <MessageCircle size={15} /> Message client on WhatsApp
+          </a>
+        )}
 
         {request.status === "requested" ? (
           <Button full onClick={() => onAccept(request.id)}>Accept task</Button>
@@ -1106,11 +1135,13 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     time: STEPS.indexOf(s) <= STEPS.indexOf(status) ? "—" : "",
   }));
 
-  const mapRequestRow = (r, names) => ({
+  const mapRequestRow = (r, names, phones) => ({
     id: r.id, service: r.category, title: r.title, country: r.country || "Zimbabwe", city: r.city,
     status: r.status, agent: r.agent_id ? ((names && names[r.agent_id]) || "Assigned agent") : null,
     agentId: r.agent_id, notes: r.description, fee: r.fee, payMethod: r.pay_method, paid: true,
     agentFee: r.agent_fee, completedAt: r.completed_at, paidOutAt: r.paid_out_at,
+    agentPhone: r.agent_id ? ((phones && phones[r.agent_id]) || null) : null,
+    clientPhone: (phones && phones[r.client_id]) || null,
     messages: [], log: buildLog(r.status),
   });
 
@@ -1138,19 +1169,45 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     return nameByAgent;
   };
 
+  const loadAgentPhones = async (rows) => {
+    const ids = [...new Set(rows.map((r) => r.agent_id).filter(Boolean))];
+    if (ids.length === 0) return {};
+    const { data } = await supabase.from("agents").select("id, profile_id").in("id", ids);
+    if (!data || data.length === 0) return {};
+    const profileIds = data.map((a) => a.profile_id);
+    const { data: profs } = await supabase.from("profiles").select("id, phone").in("id", profileIds);
+    const phoneByProfile = {};
+    (profs || []).forEach((p) => { phoneByProfile[p.id] = p.phone; });
+    const phoneByAgent = {};
+    data.forEach((a) => { phoneByAgent[a.id] = phoneByProfile[a.profile_id] || null; });
+    return phoneByAgent;
+  };
+
+  const loadClientPhones = async (rows) => {
+    const ids = [...new Set(rows.map((r) => r.client_id).filter(Boolean))];
+    if (ids.length === 0) return {};
+    const { data } = await supabase.from("profiles").select("id, phone").in("id", ids);
+    const phoneByClient = {};
+    (data || []).forEach((p) => { phoneByClient[p.id] = p.phone; });
+    return phoneByClient;
+  };
+
+
   const loadData = async () => {
     if (role === "client") {
       const { data } = await supabase.from("requests").select("*").eq("client_id", profile.id).order("created_at", { ascending: false });
       const rows = data || [];
       const names = await loadAgentNames(rows);
+      const phones = await loadAgentPhones(rows);
       setAgentNames(names);
-      setRequests(rows.map((r) => mapRequestRow(r, names)));
+      setRequests(rows.map((r) => mapRequestRow(r, names, phones)));
     } else if (role === "agent") {
       const agent = await loadAgentRow();
       const { data: unclaimed } = await supabase.from("requests").select("*").eq("status", "requested").is("agent_id", null).order("created_at", { ascending: false });
       const mineRes = agent ? await supabase.from("requests").select("*").eq("agent_id", agent.id).order("created_at", { ascending: false }) : { data: [] };
+      const clientPhones = await loadClientPhones(mineRes.data || []);
       setQueue((unclaimed || []).map((r) => mapRequestRow(r, {})));
-      setRequests((mineRes.data || []).map((r) => ({ ...mapRequestRow(r, {}), agent: "You" })));
+      setRequests((mineRes.data || []).map((r) => ({ ...mapRequestRow(r, {}, clientPhones), agent: "You" })));
     }
   };
 
