@@ -99,8 +99,8 @@ export default function AuthScreen({ onAuthed }) {
         {error && <div style={{ color: C.alert, fontSize: 13, marginBottom: 12 }}>{error}</div>}
         {info && <div style={{ color: C.teal, fontSize: 13, marginBottom: 12 }}>{info}</div>}
 
-        <div style={{ fontSize: 12, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.5, textAlign: "center" }}>
-          <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Terms &amp; Conditions</a>{" "}
+        <div style={{ fontSize: 12, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.5, display: "flex", justifyContent: "space-between" }}>
+          <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Terms &amp; Conditions</a>
           <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Privacy Policy</a>
         </div>
         <button type="submit" disabled={loading} style={{
