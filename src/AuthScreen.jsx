@@ -15,6 +15,7 @@ export default function AuthScreen({ onAuthed }) {
   const [mode, setMode] = useState("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("client");
   const [error, setError] = useState("");
@@ -38,7 +39,7 @@ export default function AuthScreen({ onAuthed }) {
         const user = data.user;
         if (user) {
           const { error: profileError } = await supabase.from("profiles").insert({
-            id: user.id, full_name: fullName, email, role,
+            id: user.id, full_name: fullName, email, phone, role,
           });
           if (profileError) throw profileError;
         }
@@ -77,6 +78,9 @@ export default function AuthScreen({ onAuthed }) {
           <input style={inputStyle} placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
         )}
         <input style={inputStyle} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        {mode === "signup" && (
+          <input style={inputStyle} type="tel" placeholder="Mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} required={role === "client"} />
+        )}
         <input style={inputStyle} type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
 
         {mode === "signup" && (
@@ -97,7 +101,7 @@ export default function AuthScreen({ onAuthed }) {
 
         <div style={{ fontSize: 12, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.5, textAlign: "center" }}>
           <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Terms &amp; Conditions</a>
-          <span aria-hidden="true"> · </span>
+          <span aria-hidden="true"> Â· </span>
           <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Privacy Policy</a>
         </div>
         <button type="submit" disabled={loading} style={{
