@@ -149,6 +149,7 @@ jobs:
           PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
         run: |
           mkdir -p $RUNNER_TEMP/signing
+          echo "DEBUG_LENGTHS cert=${#CERT_P12_BASE64} profile=${#PROFILE_BASE64}"
           echo "$CERT_P12_BASE64" | base64 -d > $RUNNER_TEMP/signing/distribution.p12
           echo "$PROFILE_BASE64" | base64 -d > $RUNNER_TEMP/signing/profile.mobileprovision
 
