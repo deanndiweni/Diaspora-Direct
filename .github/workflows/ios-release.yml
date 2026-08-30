@@ -149,21 +149,12 @@ jobs:
           PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
         run: |
           mkdir -p $RUNNER_TEMP/signing
-          echo "DEBUG_LENGTHS cert=${#CERT_P12_BASE64} profile=${#PROFILE_BASE64}"
           echo "$CERT_P12_BASE64" | base64 -d > $RUNNER_TEMP/signing/distribution.p12
           echo "$PROFILE_BASE64" | base64 -d > $RUNNER_TEMP/signing/profile.mobileprovision
 
-          echo "--- file sizes ---"
-          ls -la $RUNNER_TEMP/signing/
-          echo "--- file types ---"
-          file $RUNNER_TEMP/signing/distribution.p12 $RUNNER_TEMP/signing/profile.mobileprovision
-          echo "--- profile hexdump head ---"
-          xxd $RUNNER_TEMP/signing/profile.mobileprovision | head -5
-          echo "--- cert hexdump head ---"
-          xxd $RUNNER_TEMP/signing/distribution.p12 | head -5
-
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          PROFILE_UUID=$(security cms -D -i $RUNNER_TEMP/signing/profile.mobileprovision | /usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin)
+          security cms -D -i $RUNNER_TEMP/signing/profile.mobileprovision > $RUNNER_TEMP/signing/profile.plist
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" $RUNNER_TEMP/signing/profile.plist)
           cp $RUNNER_TEMP/signing/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
 
       - name: Import certificate into a temporary keychain
