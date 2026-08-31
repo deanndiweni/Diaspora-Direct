@@ -698,9 +698,9 @@ function ClientProfile({ setRole, profile }) {
         <Card>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 8 }}>Legal & privacy</div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Terms of Service</a>
-            <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Privacy Policy</a>
-            <a href="/delete-account.html" target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Account deletion help</a>
+            <a href="/terms.html" target="_blank" rel="noopener noreferrer" onClick={(e) => { if (Capacitor.isNativePlatform()) { e.preventDefault(); Browser.open({ url: apiUrl("/terms.html") }); } }} style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Terms of Service</a>
+            <a href="/privacy.html" target="_blank" rel="noopener noreferrer" onClick={(e) => { if (Capacitor.isNativePlatform()) { e.preventDefault(); Browser.open({ url: apiUrl("/privacy.html") }); } }} style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Privacy Policy</a>
+            <a href="/delete-account.html" target="_blank" rel="noopener noreferrer" onClick={(e) => { if (Capacitor.isNativePlatform()) { e.preventDefault(); Browser.open({ url: apiUrl("/delete-account.html") }); } }} style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Account deletion help</a>
           </div>
         </Card>
         <Button variant="ghost" full onClick={() => setRole("agent")}>Sign out</Button>
@@ -1428,7 +1428,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
           background: C.teal, padding: "12px 18px", display: "flex", alignItems: "center",
           justifyContent: "space-between", position: "sticky", top: 0, zIndex: 10,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div onClick={() => goto("home")} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
               <img src={LOGO_B64} alt="" style={{ width: "150%", height: "150%", objectFit: "cover" }} />
             </div>
