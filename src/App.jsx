@@ -1301,7 +1301,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
       client_id: profile.id, category: service, title, city, country: "Zimbabwe",
       description: notes, fee, pay_method: payMethod, status: initialStatus,
     }).select().single();
-    if (error || !data) { setScreen("home"); return; }
+if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) || "We couldn't create your request. Please try again." }); setScreen("home"); return; }    
     if (payMethod === "card") {
       try {
         const resp = await fetch(apiUrl("/api/create-checkout-session"), {
