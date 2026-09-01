@@ -1409,7 +1409,7 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
 const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : agentTabs;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#EAE3D2", fontFamily: "'Work Sans', sans-serif", display: "flex", justifyContent: "center" }}>
+    <div style={{ height: "100vh", overflow: "hidden", background: "#EAE3D2", fontFamily: "'Work Sans', sans-serif", display: "flex", justifyContent: "center" }}>
       <style>{FONTS}</style>
       {banner && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
@@ -1421,7 +1421,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
       )}
       <div
         style={{
-          width: "100%", maxWidth: 480, minHeight: "100vh", background: C.sand,
+          width: "100%", maxWidth: 480, height: "100vh", overflow: "hidden", background: C.sand,
           boxShadow: "0 0 40px rgba(20,20,10,0.12)", position: "relative",
           display: "flex", flexDirection: "column",
         }}
