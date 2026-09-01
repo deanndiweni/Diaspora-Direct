@@ -6,6 +6,26 @@
     <meta name="theme-color" content="#4E6E49" />
     <meta name="description" content="Trusted on-the-ground help for diaspora communities." />
     <title>Diaspora Direct</title>
+    <style>
+      /*
+        Lock the document to the device viewport so the page itself never
+        scrolls or rubber-bands on mobile (web or the native Capacitor app).
+        Without this, html/body can grow taller than the visible screen
+        (100vh is unreliable in mobile Safari/WKWebView) and the whole page
+        bounces around independently of the app's own scrollable content
+        area, especially when the keyboard opens.
+      */
+      html, body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-text-size-adjust: 100%;
+      }
+      #root {
+        height: 100%;
+      }
+    </style>
   </head>
   <body style="margin:0;">
     <div id="root"></div>
