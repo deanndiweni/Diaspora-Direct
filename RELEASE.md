@@ -64,6 +64,37 @@ automatically, so every build has a strictly increasing version code as
 Google Play requires. `versionName` defaults to `1.0.0` unless you set it
 when running the workflow manually.
 
+## Optional: auto-upload to the Play Store
+
+By default the workflow just produces the `.aab` artifact above, someone
+still has to download it and upload it to Play Console by hand. To make it
+upload itself to the Internal testing track automatically (matching what
+the iOS workflow already does for TestFlight), you need a Google Play
+**service account** with API access to this app. This is a one-time setup
+that only Dean (or whoever owns the Google Play Console account for
+Diaspora Direct) can do, since it requires access to that Google account.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a
+   new project (or reuse one), then go to **IAM & Admin > Service Accounts**
+   and create a service account (e.g. `play-store-releases`). Create a JSON
+   key for it and download it; this file is a credential, treat it like a
+   password.
+2. In [Google Play Console](https://play.google.com/console/), go to
+   **Setup > API access**, link the Google Cloud project from step 1, and
+   grant the new service account access to Diaspora Direct with the
+   **Release manager** permission (this lets it upload builds but not
+   change store listings, pricing, etc).
+3. In the GitHub repo: **Settings > Secrets and variables > Actions > New
+   repository secret**, name it `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, and
+   paste the entire contents of the JSON key file downloaded in step 1 as
+   the value.
+
+Once that secret exists, every future push that triggers an Android build
+will also upload the resulting `.aab` straight to the Play Console's
+Internal testing track. If the secret isn't set, the workflow skips that
+step and behaves exactly as before (build + downloadable artifact only),
+nothing breaks either way.
+
 ## Keeping the keystore safe
 
 Store a backup of `diaspora-direct-release.keystore` and its two passwords
