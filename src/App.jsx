@@ -1303,6 +1303,7 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     }).select().single();
 if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) || "We couldn't create your request. Please try again." }); setScreen("home"); return; }    
     if (payMethod === "card") {
+      let checkoutError = "The payment provider didn't return a checkout link.";
       try {
         const resp = await fetch(apiUrl("/api/create-checkout-session"), {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -1314,16 +1315,18 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
           else window.location.href = json.url;
           return;
         }
-      } catch (e) {}
+        if (json.error) checkoutError = json.error;
+      } catch (e) {
+        checkoutError = e.message || "We couldn't reach the payment provider.";
+      }
       await supabase.from("requests").update({ status: "cancelled" }).eq("id", data.id);
+      setBanner({ kind: "warn", text: `We couldn't start checkout: ${checkoutError}. Please try again.` });
       setScreen("home");
       return;
     }
     setRequests((r) => [{ ...mapRequestRow(data, agentNames), agent: null }, ...r]);
     setSelectedId(data.id);
     setScreen("payinfo");
-    return;
-    setScreen("home");
   };
 
   const handleConfirmSent = async (id) => {
