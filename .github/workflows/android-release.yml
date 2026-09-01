@@ -1,8 +1,11 @@
 name: Android Release Build
 
-# Builds a signed release Android App Bundle (.aab) for the Play Store, and
-# (if configured) uploads it straight to the Play Console's Internal testing
-# track, the same auto-publish behaviour the iOS workflow has.
+# Builds a signed release Android App Bundle (.aab) for the Play Store, plus
+# a signed .apk that can be installed directly on a phone without the Play
+# Store at all (download the app-release-apk artifact from the workflow
+# run's Summary page). If configured, it also uploads the .aab straight to
+# the Play Console's Internal testing track, the same auto-publish behaviour
+# the iOS workflow has.
 #
 # Requires these repo secrets (Settings -> Secrets and variables -> Actions):
 #   ANDROID_KEYSTORE_BASE64   base64-encoded contents of your release .keystore/.jks file
@@ -88,12 +91,15 @@ jobs:
         working-directory: android
         run: chmod +x gradlew
 
-      - name: Build release AAB
+      - name: Build release AAB and APK
         working-directory: android
         env:
           ANDROID_VERSION_CODE: ${{ github.run_number }}
           ANDROID_VERSION_NAME: ${{ github.event.inputs.versionName }}
-        run: ./gradlew bundleRelease --no-daemon
+        # bundleRelease produces the .aab for the Play Store; assembleRelease
+        # produces a signed .apk that can be installed directly on a phone
+        # (sideloaded) without going through the Play Store at all.
+        run: ./gradlew bundleRelease assembleRelease --no-daemon
 
       - name: Clean up signing material
         if: always()
@@ -105,6 +111,13 @@ jobs:
         with:
           name: app-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Upload APK artifact (for direct install / sideloading)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
 
       - name: Upload to Play Store (internal testing)
