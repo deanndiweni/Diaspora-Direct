@@ -44,6 +44,10 @@ jobs:
   build:
     name: Build signed AAB
     runs-on: ubuntu-latest
+    env:
+      # Job-level env so step `if:` conditions can read it below (`if:` can't
+      # reference `secrets` directly, only `env`).
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -121,10 +125,10 @@ jobs:
           retention-days: 30
 
       - name: Upload to Play Store (internal testing)
-        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        if: ${{ env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJsonPlainText: ${{ env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.diasporadirect.app
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           track: internal
