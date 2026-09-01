@@ -1,12 +1,21 @@
 name: Android Release Build
 
-# Builds a signed release Android App Bundle (.aab) for the Play Store.
+# Builds a signed release Android App Bundle (.aab) for the Play Store, and
+# (if configured) uploads it straight to the Play Console's Internal testing
+# track, the same auto-publish behaviour the iOS workflow has.
 #
 # Requires these repo secrets (Settings -> Secrets and variables -> Actions):
 #   ANDROID_KEYSTORE_BASE64   base64-encoded contents of your release .keystore/.jks file
 #   ANDROID_KEYSTORE_PASSWORD the keystore's password
 #   ANDROID_KEY_ALIAS         the alias of the signing key inside the keystore
 #   ANDROID_KEY_PASSWORD      the signing key's password (often same as keystore password)
+#
+# Optional, to enable automatic Play Store uploads:
+#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON   the full JSON key of a Google Play
+#     service account that has been granted "Release manager" access to this
+#     app in Play Console (Setup -> API access). If this secret isn't set,
+#     the build still runs and produces the .aab artifact as before, it
+#     just skips the upload step instead of failing.
 #
 # See README.md / RELEASE.md for how to generate the keystore and add these secrets.
 
@@ -97,3 +106,13 @@ jobs:
           name: app-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
+
+      - name: Upload to Play Store (internal testing)
+        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.diasporadirect.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
