@@ -60,6 +60,13 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_WISE_ACCOUNT_NAME: ${{ secrets.VITE_WISE_ACCOUNT_NAME }}
+          VITE_WISE_BANK_NAME: ${{ secrets.VITE_WISE_BANK_NAME }}
+          VITE_WISE_ACCOUNT_NUMBER: ${{ secrets.VITE_WISE_ACCOUNT_NUMBER }}
+          VITE_WISE_SORT_CODE: ${{ secrets.VITE_WISE_SORT_CODE }}
+          VITE_WISE_IBAN: ${{ secrets.VITE_WISE_IBAN }}
+          VITE_WISE_BIC: ${{ secrets.VITE_WISE_BIC }}
+          VITE_PAYPAL_LINK: ${{ secrets.VITE_PAYPAL_LINK }}
         run: npm run build
 
       - name: Sync Capacitor iOS project
