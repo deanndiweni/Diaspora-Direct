@@ -356,9 +356,15 @@ function ClientHome({ requests, goto, setRole, profile }) {
 }
 
 const SERVICE_FEES = {
-  property: 15, family: 12, errand: 10, urgent: 35, documents: 20, funeral: 25,
-};
+  property: 25, family: 25, errand: 12, urgent: 37, documents: 20, funeral: 52,
+  };
 
+const SERVICE_FEE_NOTES = {
+  property: "30 min included, then £2 per extra 5 min",
+  family: "30 min included, then £2 per extra 5 min",
+  urgent: "30 min included, then £2 per extra 5 min",
+  funeral: "Billed per hour",
+};
 const WISE = { name: import.meta.env.VITE_WISE_ACCOUNT_NAME || "", bank: import.meta.env.VITE_WISE_BANK_NAME || "", account: import.meta.env.VITE_WISE_ACCOUNT_NUMBER || "", sort: import.meta.env.VITE_WISE_SORT_CODE || "", iban: import.meta.env.VITE_WISE_IBAN || "", bic: import.meta.env.VITE_WISE_BIC || "" };
 const PAYPAL_LINK = import.meta.env.VITE_PAYPAL_LINK || "";
 const payRef = (id) => "DD-" + String(id || "").replace(/-/g, "").slice(0, 6).toUpperCase();
@@ -514,6 +520,11 @@ function NewRequest({ presetService, onCreate, goto }) {
             </span>
             <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600, color: C.tealDark }}>£{fee}.00</span>
           </div>
+          {SERVICE_FEE_NOTES[service] && (
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.tealDark, marginBottom: 4 }}>
+            {SERVICE_FEE_NOTES[service]}
+          </div>
+          )}
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft, marginBottom: 12 }}>
             Includes agent dispatch, photo report and WhatsApp updates. Charged only once an agent is confirmed.
           </div>
