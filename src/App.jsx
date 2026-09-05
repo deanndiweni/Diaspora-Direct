@@ -938,8 +938,93 @@ function AgentEarningsLegacy() {
 
 // ---------- App shell ----------
 
-function AdminHome({ setRole }) {
+const ALL_STATUSES = ["requested", "assigned", "in_progress", "completed", "cancelled", "refunded", "pending_payment", "awaiting_transfer", "payment_review"];
+
+// Shared admin control row: lets an admin reassign the agent, override the
+// status, or correct the fee on any request, from either the client panel
+// or the agent panel.
+function AdminRequestRow({ request, agentOptions, onUpdated }) {
+  const [status, setStatus] = useState(request.status);
+  const [fee, setFee] = useState(request.fee ?? "");
+  const [agentId, setAgentId] = useState(request.agent_id || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const save = async (patch) => {
+    setBusy(true); setErr("");
+    const { error } = await supabase.from("requests").update(patch).eq("id", request.id);
+    setBusy(false);
+    if (error) { setErr(error.message || "We could not save that change."); return; }
+    onUpdated({ ...request, ...patch });
+  };
+
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: C.charcoalSoft }}>{request.id}</div>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal, marginTop: 2 }}>
+            {request.title}
+          </div>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft, marginTop: 2 }}>
+            {request.city}, {request.country}
+          </div>
+        </div>
+        <StatusPill status={status} />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <select
+          value={agentId}
+          onChange={(e) => { const v = e.target.value; setAgentId(v); save({ agent_id: v || null }); }}
+          style={{ ...inputStyle, flex: "1 1 140px", padding: "8px 10px", fontSize: 12 }}
+        >
+          <option value="">Unassigned</option>
+          {agentOptions.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+        </select>
+        <select
+          value={status}
+          onChange={(e) => { const v = e.target.value; setStatus(v); save({ status: v }); }}
+          style={{ ...inputStyle, flex: "1 1 130px", padding: "8px 10px", fontSize: 12 }}
+        >
+          {ALL_STATUSES.map((s) => (
+            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+          ))}
+        </select>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: C.charcoalSoft }}>£</span>
+          <input
+            type="number"
+            value={fee}
+            onChange={(e) => setFee(e.target.value)}
+            onBlur={() => { if (Number(fee) !== Number(request.fee)) save({ fee: Number(fee) || 0 }); }}
+            style={{ ...inputStyle, width: 70, padding: "8px 8px", fontSize: 12 }}
+          />
+        </div>
+      </div>
+      {busy && <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft, marginTop: 6 }}>Saving…</div>}
+      {err && <div role="alert" style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.alert, marginTop: 6 }}>{err}</div>}
+    </Card>
+  );
+}
+
+// Fetches the approved-agent roster used to populate reassignment dropdowns.
+async function loadApprovedAgentOptions() {
+  const { data: approved } = await supabase.from("agents").select("id, profile_id").eq("approved", true);
+  const rows = approved || [];
+  const profileIds = [...new Set(rows.map((a) => a.profile_id).filter(Boolean))];
+  let namesById = {};
+  if (profileIds.length) {
+    const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", profileIds);
+    (profs || []).forEach((p) => { namesById[p.id] = p.full_name; });
+  }
+  return rows.map((a) => ({ id: a.id, name: namesById[a.profile_id] || "Agent" }));
+}
+
+function AdminHome({ setRole, goto }) {
 const [pendingAgents, setPendingAgents] = useState([]);
+const [allAgents, setAllAgents] = useState([]);
 const [recentRequests, setRecentRequests] = useState([]);
 const [clients, setClients] = useState([]);
 const [loading, setLoading] = useState(true);
@@ -957,6 +1042,32 @@ const { data: profs } = await supabase.from("profiles").select("id, full_name, e
 (profs || []).forEach((p) => { namesById[p.id] = p; });
 }
 setPendingAgents(rows.map((a) => ({ ...a, profileInfo: namesById[a.profile_id] })));
+
+const { data: allAgentRows } = await supabase.from("agents").select("*").order("created_at", { ascending: false });
+const allRows = allAgentRows || [];
+const allProfileIds = [...new Set(allRows.map((a) => a.profile_id).filter(Boolean))];
+let allNamesById = {};
+if (allProfileIds.length) {
+  const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", allProfileIds);
+  (profs || []).forEach((p) => { allNamesById[p.id] = p; });
+}
+const agentIds = allRows.map((a) => a.id);
+let jobCounts = {};
+if (agentIds.length) {
+  const { data: agentReqs } = await supabase.from("requests").select("agent_id, status").in("agent_id", agentIds);
+  (agentReqs || []).forEach((r) => {
+    if (!r.agent_id) return;
+    jobCounts[r.agent_id] = jobCounts[r.agent_id] || { total: 0, completed: 0 };
+    jobCounts[r.agent_id].total += 1;
+    if (r.status === "completed") jobCounts[r.agent_id].completed += 1;
+  });
+}
+setAllAgents(allRows.map((a) => ({
+  ...a,
+  profileInfo: allNamesById[a.profile_id],
+  jobCount: (jobCounts[a.id] || { total: 0 }).total,
+  completedCount: (jobCounts[a.id] || { completed: 0 }).completed,
+})));
 
 const { data: reqData } = await supabase.from("requests").select("*").order("created_at", { ascending: false }).limit(20);
 setRecentRequests(reqData || []);
@@ -1058,6 +1169,40 @@ No agents waiting right now.
 {actionError}
 </div>
 )}
+
+<div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "18px 0 8px", color: C.charcoal }}>
+Agents ({allAgents.length})
+</div>
+{!loading && allAgents.length === 0 && (
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 16 }}>
+No agents yet.
+</div>
+)}
+{allAgents.map((a) => {
+  const label = a.approved ? "Approved" : a.approved_at ? "Suspended" : "Pending";
+  const pill = label === "Approved" ? { bg: "#E3EFE0", fg: "#3E7A3A" } : label === "Suspended" ? { bg: "#F3E3E3", fg: "#B33A3A" } : { bg: "#F1E7D1", fg: "#8A6A21" };
+  return (
+    <Card key={a.id} onClick={() => goto("agentPanel", a.id)}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal }}>
+            {a.profileInfo?.full_name || "Unnamed agent"}
+          </div>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft }}>
+            {a.profileInfo?.email || ""}{a.region ? ` · ${a.region}` : ""}
+          </div>
+        </div>
+        <span style={{ background: pill.bg, color: pill.fg, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, padding: "3px 8px", borderRadius: 20, letterSpacing: 0.3 }}>
+          {label}
+        </span>
+      </div>
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.charcoalSoft, marginTop: 8 }}>
+        {a.jobCount} {a.jobCount === 1 ? "job" : "jobs"} · {a.completedCount} completed
+      </div>
+    </Card>
+  );
+})}
+
 <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "18px 0 8px", color: C.charcoal }}>
 Clients ({clients.length})
 </div>
@@ -1067,7 +1212,7 @@ No registered clients yet.
 </div>
 )}
 {clients.map((c) => (
-<Card key={c.id}>
+<Card key={c.id} onClick={() => goto("clientPanel", c.id)}>
 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 <div>
 <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal }}>
@@ -1081,7 +1226,7 @@ No registered clients yet.
 {c.requestCount} {c.requestCount === 1 ? "request" : "requests"}
 </div>
 </div>
-<button type="button" onClick={() => deleteClientAccount(c.id)} disabled={busyId === c.id} style={{ marginTop: 10, width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.alert}`, background: "transparent", color: C.alert, fontFamily: "'Work Sans', sans-serif", fontSize: 12, fontWeight: 600, cursor: busyId === c.id ? "default" : "pointer", opacity: busyId === c.id ? 0.6 : 1 }}>{busyId === c.id ? "Deleting…" : "Delete account"}</button>
+<button type="button" onClick={(e) => { e.stopPropagation(); deleteClientAccount(c.id); }} disabled={busyId === c.id} style={{ marginTop: 10, width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.alert}`, background: "transparent", color: C.alert, fontFamily: "'Work Sans', sans-serif", fontSize: 12, fontWeight: 600, cursor: busyId === c.id ? "default" : "pointer", opacity: busyId === c.id ? 0.6 : 1 }}>{busyId === c.id ? "Deleting…" : "Delete account"}</button>
 </Card>
 ))}
 
@@ -1126,6 +1271,155 @@ Sign out
 </div>
 </div>
 );
+}
+
+// Admin drill-down: everything about one client, plus the ability to fix up
+// any of their requests (reassign agent, override status, correct the fee).
+function AdminClientPanel({ clientId, goto }) {
+  const [profile, setProfile] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [agentOptions, setAgentOptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    const { data: prof } = await supabase.from("profiles").select("*").eq("id", clientId).maybeSingle();
+    setProfile(prof || null);
+    const { data: reqs } = await supabase.from("requests").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+    setRequests(reqs || []);
+    setAgentOptions(await loadApprovedAgentOptions());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [clientId]);
+
+  const handleUpdated = (updated) => {
+    setRequests((rs) => rs.map((r) => (r.id === updated.id ? updated : r)));
+  };
+
+  return (
+    <div>
+      <TopBar title={profile?.full_name || "Client"} onBack={() => goto("home")} />
+      <div style={{ padding: 16 }}>
+        {loading && <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>Loading…</div>}
+        {profile && (
+          <Card>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 14, color: C.charcoal }}>
+              {profile.full_name}
+            </div>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginTop: 2 }}>
+              {profile.email}{profile.phone ? ` · ${profile.phone}` : ""}
+            </div>
+          </Card>
+        )}
+        <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "14px 0 8px", color: C.charcoal }}>
+          Requests ({requests.length})
+        </div>
+        {!loading && requests.length === 0 && (
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No requests yet.</div>
+        )}
+        {requests.map((r) => (
+          <AdminRequestRow key={r.id} request={r} agentOptions={agentOptions} onUpdated={handleUpdated} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Admin drill-down: everything about one agent, plus the ability to
+// approve/suspend them and fix up any of their assigned requests.
+function AdminAgentPanel({ agentId, goto }) {
+  const [agentRow, setAgentRow] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [agentOptions, setAgentOptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    const { data: row } = await supabase.from("agents").select("*").eq("id", agentId).maybeSingle();
+    setAgentRow(row || null);
+    if (row) {
+      const { data: prof } = await supabase.from("profiles").select("*").eq("id", row.profile_id).maybeSingle();
+      setProfile(prof || null);
+    }
+    const { data: reqs } = await supabase.from("requests").select("*").eq("agent_id", agentId).order("created_at", { ascending: false });
+    setRequests(reqs || []);
+    setAgentOptions(await loadApprovedAgentOptions());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [agentId]);
+
+  const toggleApproval = async () => {
+    if (!agentRow) return;
+    setBusy(true); setError("");
+    const nextApproved = !(agentRow.approved === true);
+    const { error: err } = await supabase.from("agents").update({
+      approved: nextApproved,
+      approved_at: nextApproved ? new Date().toISOString() : agentRow.approved_at,
+    }).eq("id", agentRow.id);
+    setBusy(false);
+    if (err) { setError(err.message || "We could not update this agent."); return; }
+    setAgentRow((row) => ({ ...row, approved: nextApproved }));
+  };
+
+  const handleUpdated = (updated) => {
+    setRequests((rs) => rs.map((r) => (r.id === updated.id ? updated : r)));
+  };
+
+  const label = !agentRow ? "" : agentRow.approved ? "Approved" : agentRow.approved_at ? "Suspended" : "Pending";
+  const pill = label === "Approved" ? { bg: "#E3EFE0", fg: "#3E7A3A" } : label === "Suspended" ? { bg: "#F3E3E3", fg: "#B33A3A" } : { bg: "#F1E7D1", fg: "#8A6A21" };
+
+  return (
+    <div>
+      <TopBar title={profile?.full_name || "Agent"} onBack={() => goto("home")} />
+      <div style={{ padding: 16 }}>
+        {loading && <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>Loading…</div>}
+        {profile && agentRow && (
+          <Card>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 14, color: C.charcoal }}>
+                  {profile.full_name}
+                </div>
+                <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginTop: 2 }}>
+                  {profile.email}{profile.phone ? ` · ${profile.phone}` : ""}
+                </div>
+                {agentRow.region && (
+                  <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginTop: 2 }}>
+                    {agentRow.region}
+                  </div>
+                )}
+              </div>
+              <span style={{ background: pill.bg, color: pill.fg, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, padding: "3px 8px", borderRadius: 20, letterSpacing: 0.3 }}>
+                {label}
+              </span>
+            </div>
+            <button
+              onClick={toggleApproval}
+              disabled={busy}
+              style={{ marginTop: 10, width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${agentRow.approved ? C.alert : C.teal}`, background: "transparent", color: agentRow.approved ? C.alert : C.teal, fontFamily: "'Work Sans', sans-serif", fontSize: 12, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}
+            >
+              {busy ? "Saving…" : agentRow.approved ? "Suspend agent" : "Approve agent"}
+            </button>
+            {error && <div role="alert" style={{ color: C.alert, fontFamily: "'Work Sans', sans-serif", fontSize: 11, marginTop: 8 }}>{error}</div>}
+          </Card>
+        )}
+        <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "14px 0 8px", color: C.charcoal }}>
+          Assigned requests ({requests.length})
+        </div>
+        {!loading && requests.length === 0 && (
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No requests assigned.</div>
+        )}
+        {requests.map((r) => (
+          <AdminRequestRow key={r.id} request={r} agentOptions={agentOptions} onUpdated={handleUpdated} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function DiasporaDirectApp({ profile, onSignOut }) {
@@ -1400,8 +1694,10 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
     else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
     else body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
   } else {
-  body = <AdminHome setRole={handleSwitchRole} />;
-}
+    if (screen === "clientPanel" && selectedId) body = <AdminClientPanel clientId={selectedId} goto={goto} />;
+    else if (screen === "agentPanel" && selectedId) body = <AdminAgentPanel agentId={selectedId} goto={goto} />;
+    else body = <AdminHome goto={goto} setRole={handleSwitchRole} />;
+  }
 
   const clientTabs = [
     { id: "home", icon: Home, label: "Home" },
@@ -1475,7 +1771,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
         {/* bottom tabs */}
         <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "#fff", position: "sticky", bottom: 0, zIndex: 10 }}>
           {tabs.map((t) => {
-            const active = screen === t.id || (t.id === "home" && !["new", "detail", "requests", "profile", "task", "earnings"].includes(screen));
+            const active = screen === t.id || (t.id === "home" && !["new", "detail", "requests", "profile", "task", "earnings", "clientPanel", "agentPanel"].includes(screen));
             return (
               <button
                 key={t.id}
