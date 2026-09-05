@@ -1453,7 +1453,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
           </span>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", position: "relative" }}>
+        <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "none", position: "relative" }}>
           {body}
         </div>
 
