@@ -2,7 +2,52 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import AuthScreen from "./AuthScreen.jsx";
-import { supabase } from "./supabaseClient";
+import { supabase, supabaseConfigError } from "./supabaseClient";
+
+const FALLBACK_SCREEN_STYLE = {
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 24,
+  textAlign: "center",
+  fontFamily: "'Work Sans', sans-serif",
+  color: "#B33A3A",
+  background: "#F6F1E8",
+  boxSizing: "border-box",
+};
+
+// Catches any render/lifecycle error anywhere in the tree and shows a
+// visible message instead of leaving the app on a blank white screen,
+// which is what triggered the 9 Sept 2026 App Review rejection
+// (Guideline 2.1(a) - Performance - App Completeness).
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("[ErrorBoundary] Fatal render error:", error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={FALLBACK_SCREEN_STYLE}>
+          Something went wrong loading the app.
+          <br />
+          {String(this.state.error?.message || this.state.error)}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function Root() {
   const [loading, setLoading] = useState(true);
@@ -25,6 +70,10 @@ function Root() {
   };
 
   useEffect(() => {
+    if (supabaseConfigError) {
+      setLoading(false);
+      return;
+    }
     refreshAuth().then(() => setLoading(false));
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
       refreshAuth();
@@ -37,6 +86,16 @@ function Root() {
     setSession(null);
     setProfile(null);
   };
+
+  if (supabaseConfigError) {
+    return (
+      <div style={FALLBACK_SCREEN_STYLE}>
+        Couldn't connect: {supabaseConfigError}
+        <br />
+        Please contact support if this keeps happening.
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -55,6 +114,8 @@ function Root() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <Root />
+    <ErrorBoundary>
+      <Root />
+    </ErrorBoundary>
   </React.StrictMode>
 );
