@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import AuthScreen from "./AuthScreen.jsx";
 import { supabase } from "./supabaseClient";
+import { ErrorBoundary } from "./ErrorBoundary.jsx";
 
 function Root() {
   const [loading, setLoading] = useState(true);
@@ -25,9 +26,18 @@ function Root() {
   };
 
   useEffect(() => {
-    refreshAuth().then(() => setLoading(false));
+    // .catch + .finally so a broken/missing Supabase config or a network
+    // failure can't leave the app stuck on "Loading..." forever, it falls
+    // through to the sign-in screen instead once loading resolves.
+    refreshAuth()
+      .catch((err) => {
+        console.error("Failed to load auth session:", err);
+      })
+      .finally(() => setLoading(false));
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      refreshAuth();
+      refreshAuth().catch((err) => {
+        console.error("Failed to refresh auth session:", err);
+      });
     });
     return () => listener.subscription.unsubscribe();
   }, []);
@@ -55,6 +65,8 @@ function Root() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <Root />
+    <ErrorBoundary>
+      <Root />
+    </ErrorBoundary>
   </React.StrictMode>
 );
