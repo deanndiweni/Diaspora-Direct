@@ -11,8 +11,8 @@ const C = {
   alert: "#B33A3A",
 };
 
-export default function AuthScreen({ onAuthed }) {
-  const [mode, setMode] = useState("login");
+export default function AuthScreen({ onAuthed, initialMode, onBack }) {
+  const [mode, setMode] = useState(initialMode === "signup" ? "signup" : "login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -64,6 +64,11 @@ export default function AuthScreen({ onAuthed }) {
   return (
     <div style={{ height: "100vh", overflowY: "auto", overscrollBehavior: "none", boxSizing: "border-box", background: C.sand, display: "flex", justifyContent: "center", alignItems: "center", fontFamily: "'Work Sans', sans-serif", padding: 16 }}>
       <form onSubmit={handleSubmit} style={{ width: "100%", maxWidth: 380, padding: 28, background: "#fff", borderRadius: 16, boxShadow: "0 10px 30px rgba(20,20,10,0.12)", boxSizing: "border-box" }}>
+        {onBack && (
+          <button type="button" onClick={onBack} style={{ background: "none", border: "none", color: C.teal, fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: 14 }}>
+            {"←"} Back to browsing
+          </button>
+        )}
         <div style={{ fontFamily: "'Spectral', serif", fontSize: 22, fontWeight: 700, color: C.charcoal, marginBottom: 4 }}>
           Diaspora Direct
         </div>
@@ -79,7 +84,12 @@ export default function AuthScreen({ onAuthed }) {
         )}
         <input style={inputStyle} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         {mode === "signup" && (
-          <input style={inputStyle} type="tel" placeholder="Mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} required={role === "client"} />
+          <input style={inputStyle} type="tel" placeholder="Mobile number (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        )}
+        {mode === "signup" && (
+          <div style={{ fontSize: 11.5, color: C.charcoalSoft, marginTop: -6, marginBottom: 12, lineHeight: 1.4 }}>
+            Optional. If you add it, we share it only with the agent you're matched with, so you can message on WhatsApp. You can add or remove it later from your profile.
+          </div>
         )}
         <input style={inputStyle} type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
 

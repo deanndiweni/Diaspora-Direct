@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import AuthScreen from "./AuthScreen.jsx";
+import GuestHome from "./GuestHome.jsx";
 import { supabase } from "./supabaseClient";
 import { ErrorBoundary } from "./ErrorBoundary.jsx";
 
@@ -9,6 +10,10 @@ function Root() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  // null = browsing without an account; "login" / "signup" = the account
+  // screen, reached only when the user chooses to (features that aren't
+  // account-based, like browsing services and pricing, stay open to everyone).
+  const [authMode, setAuthMode] = useState(null);
 
   const loadProfile = async (userId) => {
     const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
@@ -57,7 +62,16 @@ function Root() {
   }
 
   if (!session || !profile) {
-    return <AuthScreen onAuthed={refreshAuth} />;
+    if (authMode) {
+      return (
+        <AuthScreen
+          initialMode={authMode}
+          onAuthed={async () => { await refreshAuth(); setAuthMode(null); }}
+          onBack={() => setAuthMode(null)}
+        />
+      );
+    }
+    return <GuestHome onRequestAuth={setAuthMode} />;
   }
 
   return <App profile={profile} onSignOut={handleSignOut} />;
