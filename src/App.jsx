@@ -711,12 +711,9 @@ function ClientProfile({ setRole, profile }) {
 
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      "Permanently delete your Diaspora Direct account? This removes your profile, requests and messages and cannot be undone."
-    );
-    if (!confirmed) return;
     setDeleting(true);
     setDeleteError("");
     try {
@@ -729,6 +726,7 @@ function ClientProfile({ setRole, profile }) {
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(json.error || "We could not delete your account.");
+      setConfirmingDelete(false);
       await setRole();
     } catch (error) {
       setDeleteError(error.message || "We could not delete your account.");
@@ -785,8 +783,8 @@ function ClientProfile({ setRole, profile }) {
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft, marginBottom: 10, lineHeight: 1.4 }}>
             Permanently deletes your account and data right away. If you'd rather email us instead, see our <a href="/delete-account.html" target="_blank" rel="noopener noreferrer" onClick={(e) => { if (Capacitor.isNativePlatform()) { e.preventDefault(); Browser.open({ url: apiUrl("/delete-account.html") }); } }} style={{ color: C.teal, fontWeight: 600 }}>account deletion page</a>.
           </div>
-          <Button variant="danger" full onClick={handleDeleteAccount} disabled={deleting}>
-            {deleting ? "Deleting..." : "Delete my account"}
+          <Button variant="danger" full onClick={() => { setDeleteError(""); setConfirmingDelete(true); }} disabled={deleting}>
+            Delete my account
           </Button>
           {deleteError && <div style={{ fontSize: 11.5, color: C.alert, marginTop: 6 }}>{deleteError}</div>}
         </Card>
@@ -800,6 +798,37 @@ function ClientProfile({ setRole, profile }) {
           <MessageCircle size={15} /> Chat with us on WhatsApp
         </a>
       </div>
+
+      {confirmingDelete && (
+        <div
+          onClick={() => { if (!deleting) setConfirmingDelete(false); }}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(20,20,10,0.45)", display: "flex",
+            alignItems: "center", justifyContent: "center", zIndex: 100, padding: 24, boxSizing: "border-box",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, padding: 20, width: "100%", maxWidth: 340, boxSizing: "border-box" }}
+          >
+            <div style={{ fontFamily: "'Spectral', serif", fontSize: 17, fontWeight: 700, color: C.charcoal, marginBottom: 8 }}>
+              Delete your account?
+            </div>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoalSoft, lineHeight: 1.5, marginBottom: 18 }}>
+              This permanently removes your profile, requests and messages. This cannot be undone.
+            </div>
+            {deleteError && <div style={{ fontSize: 11.5, color: C.alert, marginBottom: 10 }}>{deleteError}</div>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="ghost" full onClick={() => setConfirmingDelete(false)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button variant="danger" full onClick={handleDeleteAccount} disabled={deleting}>
+                {deleting ? "Deleting..." : "Yes, delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
