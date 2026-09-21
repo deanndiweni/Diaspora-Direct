@@ -2,6 +2,10 @@
 
 Paste the relevant sections into App Store Connect's "App Review Information > Notes" and Google Play's "App content > App access" instructions. Fill in the bracketed placeholders before submitting - reviewers cannot proceed past login without a working account, and this draft cannot supply real credentials.
 
+## Browsing without an account
+
+The app opens to a public browse screen (services and pricing, in-house specialists, how it works, Terms and Privacy) with no login required. Reviewers can look through all of that without any credentials; **Log in** and **Create an account** buttons are the only way into account-based features (booking, tracking, messaging, payment, profile).
+
 ## Accounts reviewers will need
 
 Diaspora Direct has three roles: client, agent, and admin. Sign-up requires email confirmation, and a new agent account cannot accept work until an admin approves it, so **reviewers cannot simply sign up during review** - they need pre-made, working accounts:
@@ -14,7 +18,7 @@ Before submitting, sign in as each test account yourself once to confirm both st
 
 ## How to review the client experience
 
-1. Log in with the client test account above.
+1. On first launch, the app shows the public browse screen - service tiles, pricing, specialists and "how it works" are all visible with no login. Tap **Log in** and sign in with the client test account above.
 2. From Home, tap any service tile (Property checks, Family welfare, Errands, Urgent support, Documents, or Funeral care) or **Book & pay now**.
 3. Fill in the request details and submit. A vetted local agent normally confirms within about 2 hours; for review purposes an agent account can accept it immediately (see agent steps below).
 4. Open **Requests** to see the booking's status, and **Profile** to see account details, the WhatsApp support link, and the legal/privacy links.
@@ -23,7 +27,7 @@ Before submitting, sign in as each test account yourself once to confirm both st
 
 1. Log out (Profile > Sign out) and log back in with the agent test account.
 2. Home shows the open task queue. Accept the request created above and advance its status.
-3. Once a client and agent are matched on a request, each side can message the other directly by WhatsApp from the request/task screen - this opens WhatsApp (or web.whatsapp.com) using the phone number collected at sign-up, which is expected behaviour, not a bug or a broken link.
+3. Once a client and agent are matched on a request, each side can message the other directly by WhatsApp from the request/task screen - this opens WhatsApp (or web.whatsapp.com) using the phone number on the account, which is expected behaviour, not a bug or a broken link. Phone number is optional and can be added from Profile, so make sure the test accounts have one saved before review if you want this to work end to end.
 
 ## Payments
 
@@ -33,9 +37,9 @@ Requests are paid for through Stripe Checkout, not Apple/Google in-app purchase,
 
 ## Account deletion
 
-There is no in-app self-service "delete account" button by design. From **Profile**, both client and agent accounts show **Account deletion help**, a link to `https://app.diaspora-direct.com/delete-account.html`, which explains how to email a deletion request. Deletion requests are then actioned by an admin from the Admin panel's Clients list, which permanently removes the account's profile, messages, requests, and (for agents) agent record, plus the underlying authentication account.
+From **Profile**, both client and agent accounts show **Delete my account**. Tapping it asks for confirmation, then permanently deletes the signed-in user's own profile, messages, requests and (for agents) agent record, plus the underlying authentication account, and returns to the public browse screen. This happens immediately, in the app, with no email or customer-service step. A link to the public `/delete-account.html` page (email-based request) is also on the Profile screen, kept as an alternative for someone who can't sign in.
 
-If a reviewer wants to see a deletion actually happen rather than just the request path, you'll need to demonstrate it yourself (e.g. a short screen recording) or action a live request they send during review - the in-app link only starts the request, it doesn't complete it live in front of the reviewer.
+Record a short screen recording on a physical device showing: signing in (or creating an account), opening Profile, tapping Delete my account, confirming, and landing back on the browse screen with the account gone. Paste that recording in the Notes field of App Review Information before resubmitting, per Apple's request.
 
 ## Anything else reviewers might flag
 

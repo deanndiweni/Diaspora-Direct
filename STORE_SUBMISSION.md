@@ -37,8 +37,8 @@ Open the native projects with `npm run mobile:android` or `npm run mobile:ios`.
 - Complete App Privacy using `PRIVACY_DISCLOSURES.md` as a starting point and verify every answer.
 - Add the privacy-policy URL and support URL.
 - Explain in Review Notes that payments purchase real-world concierge/errand services and therefore use Stripe rather than in-app purchase.
-- Provide a working reviewer account and clear steps to reach client and agent functionality.
-- Account deletion is available at Profile > Account deletion help, which links to the public account-deletion request page; there is no in-app self-service delete button, deletion requests are actioned by an admin from the Admin panel's Clients list. Include this path and, if useful, a test admin login in reviewer instructions.
+- Provide a working reviewer account and clear steps to reach client and agent functionality. Note in Review Notes that the app also opens straight to a public browse screen (services, pricing, how it works) with no login required; login/sign-up is only needed to actually book, track or pay for a service.
+- Account deletion is a real in-app self-service action: Profile > Delete my account calls `api/delete-account.js` with the signed-in user's own token and deletes their auth account, profile, messages, requests and (for agents) agent record immediately, with a confirmation prompt first. The Profile screen's "account deletion page" link (public `/delete-account.html`, email-based) is kept only as an alternative for someone who can't get into the app. Attach a screen recording of the in-app deletion flow (sign in with the demo account, Profile > Delete my account, confirm, land back on the browse screen) in the Notes field per Apple's request.
 - Upload with Xcode Organizer to TestFlight first, complete export-compliance questions, then test on a physical iPhone.
 - Add screenshots for every required device class, app description, keywords, category, age rating, copyright, and support contact.
 

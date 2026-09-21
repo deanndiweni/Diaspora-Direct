@@ -4,7 +4,8 @@ This document is an engineering inventory, not legal advice. Confirm it against 
 
 ## Data the app appears to collect
 
-- Account identifiers: name, email address, phone number, Supabase user ID, and role
+- Account identifiers: name, email address, Supabase user ID, and role. Phone number is optional at sign-up and can be added or removed later from Profile; it's only used to share with the matched agent for WhatsApp contact
+- Browsing the app (services, pricing, specialists, how it works) requires no account and collects nothing
 - User content: service requests, descriptions, city/country, and messages
 - Purchase information: request fee, payment method/status, Stripe Checkout session metadata, and request ID
 - Operational data: assigned agent, request status, timestamps, completion and payout information
@@ -32,10 +33,10 @@ This document is an engineering inventory, not legal advice. Confirm it against 
 
 ## Account deletion
 
-- There is no in-app self-service delete button. From Profile, a client or agent can open Account deletion help, a link to the public /delete-account.html page, which asks the user to email a deletion request.
-- Deletion requests are actioned by an admin from the Admin panel's Clients list, which calls api/admin-delete-account.js (service-role key, admin-only) to remove the client's messages, requests, agent record (if any), profile, and auth account.
-- api/delete-account.js (a self-service DELETE endpoint scoped to the caller's own bearer token) still exists in the codebase but is no longer called from the app. It is currently dead code left over from before the self-service button was removed - safe to leave, but consider removing it or wiring a future self-service flow back to it so the code matches what actually ships.
-- Both stores expect an accessible account-deletion path when an app supports account creation; the in-app link plus admin-actioned deletion satisfies this as long as reviewers are told how it works (see STORE_SUBMISSION.md).
+- Profile > Delete my account is a real in-app self-service action. It confirms with the user once, then calls api/delete-account.js with the signed-in user's own bearer token, which removes their messages, requests, agent record (if any), profile, and auth account, then signs them out to the public browse screen.
+- api/admin-delete-account.js (service-role key, admin-only) still exists for an admin to remove a client's account from the Admin panel's Clients list; that path is now a secondary/support route, not the only way to delete an account.
+- The public /delete-account.html page (email-based request) is kept as an alternative for someone who can't sign in, and is still linked from Profile.
+- Both stores expect an accessible account-deletion path when an app supports account creation; the in-app self-service button satisfies this directly (see STORE_SUBMISSION.md).
 
 ## Submission cautions
 
