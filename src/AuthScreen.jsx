@@ -18,6 +18,7 @@ export default function AuthScreen({ onAuthed, initialMode, onBack }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("client");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,6 +35,9 @@ export default function AuthScreen({ onAuthed, initialMode, onBack }) {
     setLoading(true);
     try {
       if (mode === "signup") {
+        if (!agreed) {
+          throw new Error("Please tick the box to agree to the Terms and Conditions and Privacy Policy.");
+        }
         const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
         if (signUpError) throw signUpError;
         const user = data.user;
@@ -109,13 +113,21 @@ export default function AuthScreen({ onAuthed, initialMode, onBack }) {
         {error && <div style={{ color: C.alert, fontSize: 13, marginBottom: 12 }}>{error}</div>}
         {info && <div style={{ color: C.teal, fontSize: 13, marginBottom: 12 }}>{info}</div>}
 
-        <div style={{ fontSize: 12, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.5, display: "flex", justifyContent: "space-between" }}>
-          <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Terms &amp; Conditions</a>
-          <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Privacy Policy</a>
-        </div>
-        <button type="submit" disabled={loading} style={{
+        {mode === "signup" ? (
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.5, cursor: "pointer" }}>
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 2, width: 16, height: 16, flex: "none" }} />
+            <span>I agree to the <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Terms &amp; Conditions</a> and <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Privacy Policy</a>.</span>
+          </label>
+        ) : (
+          <div style={{ fontSize: 12, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.5, display: "flex", justifyContent: "space-between" }}>
+            <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Terms &amp; Conditions</a>
+            <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 600 }}>Privacy Policy</a>
+          </div>
+        )}
+        <button type="submit" disabled={loading || (mode === "signup" && !agreed)} style={{
           width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: C.marigold,
-          color: "#3A2A00", fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 14,
+          color: "#3A2A00", fontWeight: 700, fontSize: 14, cursor: (loading || (mode === "signup" && !agreed)) ? "not-allowed" : "pointer",
+          opacity: (mode === "signup" && !agreed) ? 0.6 : 1, marginBottom: 14,
         }}>
           {loading ? "Please wait..." : mode === "login" ? "Log in" : "Sign up"}
         </button>
