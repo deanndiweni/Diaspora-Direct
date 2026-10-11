@@ -66,7 +66,7 @@ export default function AuthScreen({ onAuthed, initialMode, onBack }) {
   };
 
   return (
-    <div style={{ height: "100vh", overflowY: "auto", overscrollBehavior: "none", boxSizing: "border-box", background: C.sand, display: "flex", justifyContent: "center", alignItems: "center", fontFamily: "'Work Sans', sans-serif", padding: 16 }}>
+    <div style={{ height: "100%", overflowY: "auto", overscrollBehavior: "none", boxSizing: "border-box", background: C.sand, display: "flex", justifyContent: "center", alignItems: "center", fontFamily: "'Work Sans', sans-serif", padding: 16 }}>
       <form onSubmit={handleSubmit} style={{ width: "100%", maxWidth: 380, padding: 28, background: "#fff", borderRadius: 16, boxShadow: "0 10px 30px rgba(20,20,10,0.12)", boxSizing: "border-box" }}>
         {onBack && (
           <button type="button" onClick={onBack} style={{ background: "none", border: "none", color: C.teal, fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: 14 }}>

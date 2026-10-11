@@ -39,9 +39,9 @@ function ExternalLink({ href, children, style }) {
 
 export default function GuestHome({ onRequestAuth }) {
   return (
-    <div style={{ height: "100vh", overflow: "hidden", background: "#EAE3D2", fontFamily: "'Work Sans', sans-serif", display: "flex", justifyContent: "center" }}>
+    <div style={{ height: "100%", overflow: "hidden", background: "#EAE3D2", fontFamily: "'Work Sans', sans-serif", display: "flex", justifyContent: "center" }}>
       <style>{FONTS}</style>
-      <div style={{ width: "100%", maxWidth: 480, height: "100vh", overflowY: "auto", overscrollBehavior: "none", background: C.sand, boxShadow: "0 0 40px rgba(20,20,10,0.12)", boxSizing: "border-box" }}>
+      <div style={{ width: "100%", maxWidth: 480, height: "100%", overflowY: "auto", overscrollBehavior: "none", background: C.sand, boxShadow: "0 0 40px rgba(20,20,10,0.12)", boxSizing: "border-box" }}>
 
         {/* header */}
         <div style={{ background: C.teal, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 10 }}>
