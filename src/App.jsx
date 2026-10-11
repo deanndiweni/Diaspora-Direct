@@ -1801,6 +1801,7 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
   } else {
     if (screen === "clientPanel" && selectedId) body = <AdminClientPanel clientId={selectedId} goto={goto} />;
     else if (screen === "agentPanel" && selectedId) body = <AdminAgentPanel agentId={selectedId} goto={goto} />;
+    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
     else body = <AdminHome goto={goto} setRole={handleSwitchRole} />;
   }
 
@@ -1817,6 +1818,7 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
   ];
   const adminTabs = [
 { id: "home", icon: ShieldCheck, label: "Admin" },
+{ id: "profile", icon: User, label: "Profile" },
 ];
 const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : agentTabs;
 
@@ -1874,7 +1876,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
         )}
 
         {/* bottom tabs */}
-        <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "#fff", position: "sticky", bottom: 0, zIndex: 10 }}>
+        <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "#fff", position: "sticky", bottom: 0, zIndex: 10, paddingBottom: "env(safe-area-inset-bottom)" }}>
           {tabs.map((t) => {
             const active = screen === t.id || (t.id === "home" && !["new", "detail", "requests", "profile", "task", "earnings", "clientPanel", "agentPanel"].includes(screen));
             return (
