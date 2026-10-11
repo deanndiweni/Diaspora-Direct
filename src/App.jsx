@@ -1801,6 +1801,7 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
   } else {
     if (screen === "clientPanel" && selectedId) body = <AdminClientPanel clientId={selectedId} goto={goto} />;
     else if (screen === "agentPanel" && selectedId) body = <AdminAgentPanel agentId={selectedId} goto={goto} />;
+    else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
     else body = <AdminHome goto={goto} setRole={handleSwitchRole} />;
   }
 
@@ -1817,11 +1818,12 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
   ];
   const adminTabs = [
 { id: "home", icon: ShieldCheck, label: "Admin" },
+{ id: "profile", icon: User, label: "Profile" },
 ];
 const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : agentTabs;
 
   return (
-    <div style={{ height: "100vh", overflow: "hidden", background: "#EAE3D2", fontFamily: "'Work Sans', sans-serif", display: "flex", justifyContent: "center" }}>
+    <div style={{ height: "100%", overflow: "hidden", background: "#EAE3D2", fontFamily: "'Work Sans', sans-serif", display: "flex", justifyContent: "center" }}>
       <style>{FONTS}</style>
       {banner && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
@@ -1833,7 +1835,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
       )}
       <div
         style={{
-          width: "100%", maxWidth: 480, height: "100vh", overflow: "hidden", background: C.sand,
+          width: "100%", maxWidth: 480, height: "100%", overflow: "hidden", background: C.sand,
           boxShadow: "0 0 40px rgba(20,20,10,0.12)", position: "relative",
           display: "flex", flexDirection: "column",
         }}
@@ -1874,7 +1876,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
         )}
 
         {/* bottom tabs */}
-        <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "#fff", position: "sticky", bottom: 0, zIndex: 10 }}>
+        <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "#fff", position: "sticky", bottom: 0, zIndex: 10, paddingBottom: "env(safe-area-inset-bottom)" }}>
           {tabs.map((t) => {
             const active = screen === t.id || (t.id === "home" && !["new", "detail", "requests", "profile", "task", "earnings", "clientPanel", "agentPanel"].includes(screen));
             return (
