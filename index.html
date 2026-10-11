@@ -22,8 +22,20 @@
         overscroll-behavior: none;
         -webkit-text-size-adjust: 100%;
       }
+      html {
+        background: #4E6E49;
+      }
+      /*
+        The native iOS web view is set to contentInset "never", so the page
+        runs edge to edge. Pad the top so the app header sits below the
+        status bar / Dynamic Island; the bottom tab bar pads itself for the
+        home indicator. This keeps the whole app inside the visible screen
+        in portrait as well as landscape.
+      */
       #root {
         height: 100%;
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top);
       }
     </style>
   </head>

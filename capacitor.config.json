@@ -7,7 +7,7 @@
     "allowMixedContent": false
   },
   "ios": {
-    "contentInset": "automatic",
+    "contentInset": "never",
     "preferredContentMode": "mobile"
   }
 }
