@@ -7,7 +7,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 // service, so checkout keeps working while the Supabase change is rolled out.
 // Keep in step with DEFAULT_SERVICE_FEES in src/pricing.js.
 const FALLBACK_FEES = {
-  property: 25, family: 25, errand: 12, urgent: 37, documents: 20, funeral: 52,
+  property: 25, family: 40, errand: 12, urgent: 37, documents: 20, funeral: 52,
 };
 
 export default async function handler(req, res) {
