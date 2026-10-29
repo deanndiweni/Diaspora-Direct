@@ -6,6 +6,7 @@ import {
   C, FONTS, LOGO_B64, SERVICES, SPECIALISTS, apiUrl,
 } from "./App.jsx";
 import { usePricing, formatMoney } from "./pricing";
+import { GuestPackages } from "./Packages.jsx";
 
 // Public, no-account-needed landing screen. Anyone can browse the services,
 // pricing, and specialists here without signing up; only starting an actual
@@ -135,6 +136,8 @@ export default function GuestHome({ onRequestAuth }) {
               </div>
             ))}
           </div>
+
+          <GuestPackages onRequestAuth={onRequestAuth} />
 
           <div style={{ fontFamily: "'Spectral', serif", fontSize: 14, fontWeight: 600, marginBottom: 8, color: C.charcoal }}>
             In-house specialists

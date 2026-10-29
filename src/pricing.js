@@ -10,7 +10,7 @@ import { supabase } from "./supabaseClient";
 // Row ids: one per service in SERVICES (property, family, errand, urgent,
 // documents, funeral) plus the extras "tip" and "extra_task".
 export const DEFAULT_SERVICE_FEES = {
-  property: 25, family: 25, errand: 12, urgent: 37, documents: 20, funeral: 52,
+  property: 25, family: 40, errand: 12, urgent: 37, documents: 20, funeral: 52,
 };
 
 export const DEFAULT_SERVICE_FEE_NOTES = {
