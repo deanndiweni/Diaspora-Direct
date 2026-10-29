@@ -33,10 +33,10 @@ create trigger service_prices_touch
   before update on public.service_prices
   for each row execute function public.touch_service_prices();
 
--- Current prices, copied from the app so nothing changes on day one.
+-- Current prices (Family welfare raised to £40, per the Oct 2026 rate card).
 insert into public.service_prices (id, amount, note) values
   ('property',   25, '30 min included, then £2 per extra 5 min'),
-  ('family',     25, '30 min included, then £2 per extra 5 min'),
+  ('family',     40, '30 min included, then £2 per extra 5 min'),
   ('errand',     12, null),
   ('urgent',     37, '30 min included, then £2 per extra 5 min'),
   ('documents',  20, null),
