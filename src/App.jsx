@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
+import { usePricing, formatMoney, DEFAULT_SERVICE_FEES, DEFAULT_SERVICE_FEE_NOTES } from "./pricing";
+import { PackagesScreen, SubscribeScreen, AdminSubscriptions } from "./Packages.jsx";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
@@ -188,7 +190,7 @@ function JourneyTrack({ log }) {
   );
 }
 
-function TopBar({ title, onBack, right }) {
+export function TopBar({ title, onBack, right }) {
   return (
     <div
       style={{
@@ -209,7 +211,7 @@ function TopBar({ title, onBack, right }) {
   );
 }
 
-function Card({ children, onClick, style }) {
+export function Card({ children, onClick, style }) {
   return (
     <div
       onClick={onClick}
@@ -223,7 +225,7 @@ function Card({ children, onClick, style }) {
   );
 }
 
-function Button({ children, onClick, variant = "primary", full, disabled }) {
+export function Button({ children, onClick, variant = "primary", full, disabled }) {
   const styles = {
     primary: { background: disabled ? "#C9B98E" : C.marigold, color: "#3A2A00" },
     secondary: { background: C.tealLight, color: C.teal },
@@ -296,6 +298,17 @@ function ClientHome({ requests, goto, setRole, profile }) {
         </button>
       </div>
 
+      <Card onClick={() => goto("packages")} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, background: C.tealLight, border: "none" }}>
+        <HeartHandshake size={22} color={C.tealDark} style={{ flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 700, fontSize: 13.5, color: C.tealDark }}>Monthly packages</div>
+          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft, marginTop: 2 }}>
+            Monthly groceries and a welfare check for your loved one, or a fully managed live-in maid. Paid automatically, cancel any time.
+          </div>
+        </div>
+        <ArrowRight size={16} color={C.tealDark} style={{ flexShrink: 0 }} />
+      </Card>
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
         {SERVICES.map((s) => (
           <Card key={s.id} onClick={() => goto("new", s.id)} style={{ marginBottom: 0, textAlign: "center" }}>
@@ -356,16 +369,11 @@ function ClientHome({ requests, goto, setRole, profile }) {
   );
 }
 
-export const SERVICE_FEES = {
-  property: 25, family: 25, errand: 12, urgent: 37, documents: 20, funeral: 52,
-  };
-
-export const SERVICE_FEE_NOTES = {
-  property: "30 min included, then £2 per extra 5 min",
-  family: "30 min included, then £2 per extra 5 min",
-  urgent: "30 min included, then £2 per extra 5 min",
-  funeral: "Billed per hour",
-};
+// Live prices come from Supabase via usePricing() in ./pricing.js. These
+// exports are the offline fallback only; edit prices in the Supabase
+// `service_prices` table, not here.
+export const SERVICE_FEES = DEFAULT_SERVICE_FEES;
+export const SERVICE_FEE_NOTES = DEFAULT_SERVICE_FEE_NOTES;
 const WISE = { name: import.meta.env.VITE_WISE_ACCOUNT_NAME || "", bank: import.meta.env.VITE_WISE_BANK_NAME || "", account: import.meta.env.VITE_WISE_ACCOUNT_NUMBER || "", sort: import.meta.env.VITE_WISE_SORT_CODE || "", iban: import.meta.env.VITE_WISE_IBAN || "", bic: import.meta.env.VITE_WISE_BIC || "" };
 const PAYPAL_LINK = import.meta.env.VITE_PAYPAL_LINK || "";
 const payRef = (id) => "DD-" + String(id || "").replace(/-/g, "").slice(0, 6).toUpperCase();
@@ -393,7 +401,7 @@ function PayInstructions({ request, goto, onConfirmSent }) {
       <TopBar title={isBank ? "Bank transfer" : "Pay with PayPal"} onBack={() => goto("requests")} />
       <div style={{ padding: 16 }}>
         <Card>
-          <div style={{ fontFamily: "'Spectral', serif", fontSize: 18, fontWeight: 700, color: C.charcoal }}>{"\u00A3"}{request.fee}.00 to pay</div>
+          <div style={{ fontFamily: "'Spectral', serif", fontSize: 18, fontWeight: 700, color: C.charcoal }}>{formatMoney(request.fee)} to pay</div>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginBottom: 12 }}>{request.title}</div>
           <div style={{ background: C.tealLight, borderRadius: 10, padding: "10px 12px" }}>
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft }}>Your payment reference, please include it</div>
@@ -419,7 +427,7 @@ function PayInstructions({ request, goto, onConfirmSent }) {
         ) : (
           <Card>
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 10, lineHeight: 1.6 }}>
-              Open PayPal, send {"\u00A3"}{request.fee}.00 and put {reference} in the note so we can match it to your errand.
+              Open PayPal, send {formatMoney(request.fee)} and put {reference} in the note so we can match it to your errand.
             </div>
             <a href={PAYPAL_LINK} target="_blank" rel="noopener noreferrer" style={{ display: "block", textAlign: "center", padding: "12px 16px", borderRadius: 10, background: C.tealDark, color: "#fff", fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>Open PayPal</a>
           </Card>
@@ -451,8 +459,9 @@ function NewRequest({ presetService, onCreate, goto }) {
   const [notes, setNotes] = useState("");
   const [payMethod, setPayMethod] = useState("card");
 
+  const pricing = usePricing();
   const canSubmit = title.trim() && city.trim();
-  const fee = SERVICE_FEES[service] ?? 15;
+  const fee = pricing.fees[service] ?? 15;
 
   return (
     <div>
@@ -519,11 +528,11 @@ function NewRequest({ presetService, onCreate, goto }) {
             <span style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal }}>
               {SERVICES.find((s) => s.id === service)?.label} service fee
             </span>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600, color: C.tealDark }}>£{fee}.00</span>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600, color: C.tealDark }}>{formatMoney(fee)}</span>
           </div>
-          {SERVICE_FEE_NOTES[service] && (
+          {pricing.notes[service] && (
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.tealDark, marginBottom: 4 }}>
-            {SERVICE_FEE_NOTES[service]}
+            {pricing.notes[service]}
           </div>
           )}
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft, marginBottom: 12 }}>
@@ -552,7 +561,7 @@ function NewRequest({ presetService, onCreate, goto }) {
             full disabled={!canSubmit}
             onClick={() => canSubmit && onCreate({ service, title, city, notes, fee, payMethod })}
           >
-            Pay £{fee}.00 & confirm agent <ArrowRight size={15} />
+            Pay {formatMoney(fee)} & confirm agent <ArrowRight size={15} />
           </Button>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.charcoalSoft, textAlign: "center", marginTop: 8 }}>
             Secure payment · Refunded in full if no agent is available
@@ -570,6 +579,7 @@ const inputStyle = {
 };
 
 function RequestDetail({ request, goto, onSendMessage }) {
+  const pricing = usePricing();
   const [draft, setDraft] = useState("");
   const svc = SERVICES.find((s) => s.id === request.service);
   return (
@@ -610,7 +620,7 @@ function RequestDetail({ request, goto, onSendMessage }) {
               : "Add an extra errand at the same location for a reduced fee."}
           </div>
           <Button variant="dark">
-            {request.status === "completed" ? "Pay £5 tip" : "Add task, pay £8"} <ArrowRight size={14} />
+            {request.status === "completed" ? `Pay ${formatMoney(pricing.extras.tip)} tip` : `Add task, pay ${formatMoney(pricing.extras.extra_task)}`} <ArrowRight size={14} />
           </Button>
         </Card>
 
@@ -1243,6 +1253,7 @@ return (
 <div>
 <TopBar title="Admin" />
 <div style={{ padding: 16 }}>
+<AdminSubscriptions />
 <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, marginBottom: 8, color: C.charcoal }}>
 Agents awaiting approval
 </div>
@@ -1537,6 +1548,8 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
   const [queue, setQueue] = useState([]);
   const [agentRow, setAgentRow] = useState(null);
   const [agentNames, setAgentNames] = useState({});
+  const [subs, setSubs] = useState([]);
+  const [packageId, setPackageId] = useState(null);
 
   const buildLog = (status) => STEPS.map((s) => ({
     step: s,
@@ -1610,6 +1623,8 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
       const phones = await loadAgentPhones(rows);
       setAgentNames(names);
       setRequests(rows.map((r) => mapRequestRow(r, names, phones)));
+      const { data: subRows } = await supabase.from("subscriptions").select("*").eq("client_id", profile.id).order("created_at", { ascending: false });
+      setSubs(subRows || []);
     } else if (role === "agent") {
       const agent = await loadAgentRow();
       const { data: unclaimed } = await supabase.from("requests").select("*").eq("status", "requested").is("agent_id", null).order("created_at", { ascending: false });
@@ -1625,6 +1640,35 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
   const processCheckoutParams = async (params, cleanUrl = false) => {
     const checkout = params.get("checkout");
     if (!checkout) return;
+    if (checkout === "subscription_success" || checkout === "subscription_cancel") {
+      const subscriptionId = params.get("subscription_id");
+      const subSessionId = params.get("session_id");
+      try {
+        if (checkout === "subscription_success" && subSessionId) {
+          setBanner({ kind: "info", text: "Confirming your monthly package…" });
+          const resp = await fetch(apiUrl("/api/verify-subscription"), {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId: subSessionId }),
+          });
+          const json = await resp.json();
+          setBanner(json.active
+            ? { kind: "success", text: "Your monthly package is active. We'll arrange this month's visit and send you an update with photos." }
+            : { kind: "warn", text: "We couldn't confirm your payment yet. If you were charged, your package will appear shortly. No need to pay again." });
+        } else {
+          await fetch(apiUrl("/api/verify-subscription"), {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscriptionId, cancelled: true }),
+          });
+          setBanner({ kind: "warn", text: "Checkout cancelled. Your monthly package was not started." });
+        }
+      } catch (e) {
+        setBanner({ kind: "warn", text: "We couldn't confirm your payment yet. If you were charged, your package will appear shortly. No need to pay again." });
+      }
+      if (cleanUrl) window.history.replaceState({}, "", window.location.pathname);
+      await loadData();
+      setScreen("packages");
+      return;
+    }
     const requestId = params.get("request_id");
     const sessionId = params.get("session_id");
     try {
@@ -1703,6 +1747,52 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
 
   const handleSwitchRole = () => {
     onSignOut();
+  };
+
+  const authHeaders = async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data && data.session ? data.session.access_token : "";
+    return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+  };
+
+  const handleSelectPackage = (pkg) => {
+    setPackageId(pkg.id);
+    setScreen("subscribe");
+  };
+
+  const handleSubscribe = async (details) => {
+    let message = "The payment provider didn't return a checkout link.";
+    try {
+      const resp = await fetch(apiUrl("/api/create-subscription-checkout"), {
+        method: "POST", headers: await authHeaders(),
+        body: JSON.stringify({ ...details, mobile: Capacitor.isNativePlatform() }),
+      });
+      const json = await resp.json();
+      if (json.url) {
+        if (Capacitor.isNativePlatform()) await Browser.open({ url: json.url });
+        else window.location.href = json.url;
+        return;
+      }
+      if (json.error) message = json.error;
+    } catch (e) {
+      message = e.message || "We couldn't reach the payment provider.";
+    }
+    setBanner({ kind: "warn", text: `We couldn't start checkout: ${message}` });
+  };
+
+  const handleCancelSub = async (subscriptionId) => {
+    try {
+      const resp = await fetch(apiUrl("/api/cancel-subscription"), {
+        method: "POST", headers: await authHeaders(),
+        body: JSON.stringify({ subscriptionId }),
+      });
+      const json = await resp.json();
+      if (json.error) throw new Error(json.error);
+      setBanner({ kind: "success", text: "Package cancelled. It runs until the end of the month you've paid for, with no further payments." });
+    } catch (e) {
+      setBanner({ kind: "warn", text: `We couldn't cancel that package: ${e.message}. Please WhatsApp us and we'll sort it.` });
+    }
+    await loadData();
   };
 
   const handleCreate = async ({ service, title, city, notes, fee, payMethod }) => {
@@ -1788,6 +1878,8 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
     else if (screen === "requests") body = <ClientRequests requests={requests} goto={goto} />;
     else if (screen === "payinfo") body = <PayInstructions request={selected} goto={goto} onConfirmSent={handleConfirmSent} />;
     else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
+    else if (screen === "packages") body = <PackagesScreen goto={goto} subs={subs} onCancel={handleCancelSub} onSelect={handleSelectPackage} />;
+    else if (screen === "subscribe") body = <SubscribeScreen pkgId={packageId} goto={goto} onSubscribe={handleSubscribe} />;
     else body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} profile={profile} />;
   } else if (role === "agent") {
     if (screen === "home") body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
@@ -1860,7 +1952,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
           {body}
         </div>
 
-        {role === "client" && screen !== "new" && (
+        {role === "client" && screen !== "new" && screen !== "subscribe" && (
           <button
             onClick={() => goto("new")}
             style={{

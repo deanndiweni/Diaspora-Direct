@@ -1,6 +1,14 @@
 import Stripe from "stripe";
+import { createClient } from "@supabase/supabase-js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Used only if the service_prices table is missing or has no row for a
+// service, so checkout keeps working while the Supabase change is rolled out.
+// Keep in step with DEFAULT_SERVICE_FEES in src/pricing.js.
+const FALLBACK_FEES = {
+  property: 25, family: 40, errand: 12, urgent: 37, documents: 20, funeral: 52,
+};
 
 export default async function handler(req, res) {
   // The native (iOS/Android) app calls this from a different origin, so the
@@ -18,12 +26,54 @@ export default async function handler(req, res) {
     return;
   }
   try {
-    const { requestId, title, fee, mobile } = req.body || {};
-    const amount = Math.round(Number(fee) * 100);
-    if (!requestId || !amount || amount < 30) {
+    // The price is never taken from the app. A modified app could send any
+    // number, so we look up the request and charge the official price for
+    // its service from Supabase.
+    const { requestId, mobile } = req.body || {};
+    if (!requestId) {
       res.status(400).json({ error: "Invalid request" });
       return;
     }
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      res.status(503).json({ error: "Card payments are temporarily unavailable. Please contact support." });
+      return;
+    }
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: request, error: requestError } = await admin
+      .from("requests")
+      .select("id, category, title, fee, status")
+      .eq("id", requestId)
+      .single();
+    if (requestError || !request) {
+      res.status(404).json({ error: "We couldn't find that request." });
+      return;
+    }
+    if (request.status !== "pending_payment") {
+      res.status(409).json({ error: "This request isn't waiting for payment." });
+      return;
+    }
+    const { data: priceRow } = await admin
+      .from("service_prices")
+      .select("amount, active")
+      .eq("id", request.category)
+      .maybeSingle();
+    const fee = priceRow && priceRow.active !== false
+      ? Number(priceRow.amount)
+      : FALLBACK_FEES[request.category];
+    const amount = Math.round(Number(fee) * 100);
+    if (!Number.isFinite(amount) || amount < 30) {
+      res.status(400).json({ error: "This service can't be paid by card yet. Please contact support." });
+      return;
+    }
+    // Keep the saved request in line with what the client is actually charged.
+    if (Number(request.fee) !== Number(fee)) {
+      await admin.from("requests").update({ fee }).eq("id", request.id);
+    }
+    const title = request.title;
     const requestOrigin = req.headers.origin || "";
     const origin = /^https?:\/\//i.test(requestOrigin)
       ? requestOrigin

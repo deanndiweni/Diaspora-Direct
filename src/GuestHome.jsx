@@ -3,8 +3,10 @@ import { ArrowRight, Wallet } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import {
-  C, FONTS, LOGO_B64, SERVICES, SPECIALISTS, SERVICE_FEES, SERVICE_FEE_NOTES, apiUrl,
+  C, FONTS, LOGO_B64, SERVICES, SPECIALISTS, apiUrl,
 } from "./App.jsx";
+import { usePricing, formatMoney } from "./pricing";
+import { GuestPackages } from "./Packages.jsx";
 
 // Public, no-account-needed landing screen. Anyone can browse the services,
 // pricing, and specialists here without signing up; only starting an actual
@@ -43,6 +45,7 @@ function ExternalLink({ href, children, style }) {
 }
 
 export default function GuestHome({ onRequestAuth }) {
+  const pricing = usePricing();
   return (
     <div style={{
       position: "fixed", top: 0, right: 0, bottom: 0, left: 0,
@@ -122,17 +125,19 @@ export default function GuestHome({ onRequestAuth }) {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                     <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal, minWidth: 0 }}>{s.label}</div>
                     <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: C.tealDark, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
-                      {"£"}{SERVICE_FEES[s.id]}
+                      {formatMoney(pricing.fees[s.id])}
                     </div>
                   </div>
                   <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft, marginTop: 2, lineHeight: 1.4, overflowWrap: "anywhere" }}>{s.blurb}</div>
-                  {SERVICE_FEE_NOTES[s.id] && (
-                    <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.charcoalSoft, marginTop: 3, overflowWrap: "anywhere" }}>{SERVICE_FEE_NOTES[s.id]}</div>
+                  {pricing.notes[s.id] && (
+                    <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.charcoalSoft, marginTop: 3, overflowWrap: "anywhere" }}>{pricing.notes[s.id]}</div>
                   )}
                 </div>
               </div>
             ))}
           </div>
+
+          <GuestPackages onRequestAuth={onRequestAuth} />
 
           <div style={{ fontFamily: "'Spectral', serif", fontSize: 14, fontWeight: 600, marginBottom: 8, color: C.charcoal }}>
             In-house specialists
