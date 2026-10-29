@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
+import { usePricing, formatMoney, DEFAULT_SERVICE_FEES, DEFAULT_SERVICE_FEE_NOTES } from "./pricing";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
@@ -356,16 +357,11 @@ function ClientHome({ requests, goto, setRole, profile }) {
   );
 }
 
-export const SERVICE_FEES = {
-  property: 25, family: 25, errand: 12, urgent: 37, documents: 20, funeral: 52,
-  };
-
-export const SERVICE_FEE_NOTES = {
-  property: "30 min included, then £2 per extra 5 min",
-  family: "30 min included, then £2 per extra 5 min",
-  urgent: "30 min included, then £2 per extra 5 min",
-  funeral: "Billed per hour",
-};
+// Live prices come from Supabase via usePricing() in ./pricing.js. These
+// exports are the offline fallback only; edit prices in the Supabase
+// `service_prices` table, not here.
+export const SERVICE_FEES = DEFAULT_SERVICE_FEES;
+export const SERVICE_FEE_NOTES = DEFAULT_SERVICE_FEE_NOTES;
 const WISE = { name: import.meta.env.VITE_WISE_ACCOUNT_NAME || "", bank: import.meta.env.VITE_WISE_BANK_NAME || "", account: import.meta.env.VITE_WISE_ACCOUNT_NUMBER || "", sort: import.meta.env.VITE_WISE_SORT_CODE || "", iban: import.meta.env.VITE_WISE_IBAN || "", bic: import.meta.env.VITE_WISE_BIC || "" };
 const PAYPAL_LINK = import.meta.env.VITE_PAYPAL_LINK || "";
 const payRef = (id) => "DD-" + String(id || "").replace(/-/g, "").slice(0, 6).toUpperCase();
@@ -393,7 +389,7 @@ function PayInstructions({ request, goto, onConfirmSent }) {
       <TopBar title={isBank ? "Bank transfer" : "Pay with PayPal"} onBack={() => goto("requests")} />
       <div style={{ padding: 16 }}>
         <Card>
-          <div style={{ fontFamily: "'Spectral', serif", fontSize: 18, fontWeight: 700, color: C.charcoal }}>{"\u00A3"}{request.fee}.00 to pay</div>
+          <div style={{ fontFamily: "'Spectral', serif", fontSize: 18, fontWeight: 700, color: C.charcoal }}>{formatMoney(request.fee)} to pay</div>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginBottom: 12 }}>{request.title}</div>
           <div style={{ background: C.tealLight, borderRadius: 10, padding: "10px 12px" }}>
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft }}>Your payment reference, please include it</div>
@@ -419,7 +415,7 @@ function PayInstructions({ request, goto, onConfirmSent }) {
         ) : (
           <Card>
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 10, lineHeight: 1.6 }}>
-              Open PayPal, send {"\u00A3"}{request.fee}.00 and put {reference} in the note so we can match it to your errand.
+              Open PayPal, send {formatMoney(request.fee)} and put {reference} in the note so we can match it to your errand.
             </div>
             <a href={PAYPAL_LINK} target="_blank" rel="noopener noreferrer" style={{ display: "block", textAlign: "center", padding: "12px 16px", borderRadius: 10, background: C.tealDark, color: "#fff", fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>Open PayPal</a>
           </Card>
@@ -451,8 +447,9 @@ function NewRequest({ presetService, onCreate, goto }) {
   const [notes, setNotes] = useState("");
   const [payMethod, setPayMethod] = useState("card");
 
+  const pricing = usePricing();
   const canSubmit = title.trim() && city.trim();
-  const fee = SERVICE_FEES[service] ?? 15;
+  const fee = pricing.fees[service] ?? 15;
 
   return (
     <div>
@@ -519,11 +516,11 @@ function NewRequest({ presetService, onCreate, goto }) {
             <span style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal }}>
               {SERVICES.find((s) => s.id === service)?.label} service fee
             </span>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600, color: C.tealDark }}>£{fee}.00</span>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600, color: C.tealDark }}>{formatMoney(fee)}</span>
           </div>
-          {SERVICE_FEE_NOTES[service] && (
+          {pricing.notes[service] && (
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.tealDark, marginBottom: 4 }}>
-            {SERVICE_FEE_NOTES[service]}
+            {pricing.notes[service]}
           </div>
           )}
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft, marginBottom: 12 }}>
@@ -552,7 +549,7 @@ function NewRequest({ presetService, onCreate, goto }) {
             full disabled={!canSubmit}
             onClick={() => canSubmit && onCreate({ service, title, city, notes, fee, payMethod })}
           >
-            Pay £{fee}.00 & confirm agent <ArrowRight size={15} />
+            Pay {formatMoney(fee)} & confirm agent <ArrowRight size={15} />
           </Button>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.charcoalSoft, textAlign: "center", marginTop: 8 }}>
             Secure payment · Refunded in full if no agent is available
@@ -570,6 +567,7 @@ const inputStyle = {
 };
 
 function RequestDetail({ request, goto, onSendMessage }) {
+  const pricing = usePricing();
   const [draft, setDraft] = useState("");
   const svc = SERVICES.find((s) => s.id === request.service);
   return (
@@ -610,7 +608,7 @@ function RequestDetail({ request, goto, onSendMessage }) {
               : "Add an extra errand at the same location for a reduced fee."}
           </div>
           <Button variant="dark">
-            {request.status === "completed" ? "Pay £5 tip" : "Add task, pay £8"} <ArrowRight size={14} />
+            {request.status === "completed" ? `Pay ${formatMoney(pricing.extras.tip)} tip` : `Add task, pay ${formatMoney(pricing.extras.extra_task)}`} <ArrowRight size={14} />
           </Button>
         </Card>
 
