@@ -17,7 +17,6 @@ export default function AuthScreen({ onAuthed, initialMode, onBack }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("client");
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -43,7 +42,8 @@ export default function AuthScreen({ onAuthed, initialMode, onBack }) {
         const user = data.user;
         if (user) {
           const { error: profileError } = await supabase.from("profiles").insert({
-            id: user.id, full_name: fullName, email, phone, role,
+            // Everyone who signs up here is a client. Agents are added by the admin.
+            id: user.id, full_name: fullName, email, phone, role: "client",
           });
           if (profileError) throw profileError;
         }
@@ -92,21 +92,14 @@ export default function AuthScreen({ onAuthed, initialMode, onBack }) {
         )}
         {mode === "signup" && (
           <div style={{ fontSize: 11.5, color: C.charcoalSoft, marginTop: -6, marginBottom: 12, lineHeight: 1.4 }}>
-            Optional. If you add it, we share it only with the agent you're matched with, so you can message on WhatsApp. You can add or remove it later from your profile.
+            Optional. Only the Diaspora Direct team sees it, so we can reach you about your requests. You can change it later in your profile.
           </div>
         )}
         <input style={inputStyle} type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
 
         {mode === "signup" && (
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button type="button" onClick={() => setRole("client")} style={{
-              flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + (role === "client" ? C.teal : C.line),
-              background: role === "client" ? C.teal : "#fff", color: role === "client" ? "#fff" : C.charcoal, fontWeight: 600, cursor: "pointer",
-            }}>I need help (Client)</button>
-            <button type="button" onClick={() => setRole("agent")} style={{
-              flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + (role === "agent" ? C.teal : C.line),
-              background: role === "agent" ? C.teal : "#fff", color: role === "agent" ? "#fff" : C.charcoal, fontWeight: 600, cursor: "pointer",
-            }}>I'm an Agent</button>
+          <div style={{ fontSize: 11.5, color: C.charcoalSoft, marginBottom: 14, lineHeight: 1.4 }}>
+            Working as a Diaspora Direct agent? You do not need to sign up. We set up your login and send it to you.
           </div>
         )}
 
