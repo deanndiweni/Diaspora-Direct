@@ -356,9 +356,12 @@ function ClientHome({ requests, goto, setRole, profile }) {
   );
 }
 
+// Fallback prices only. The live prices come from the Supabase "services"
+// table (editable there with no app release), and the server always sets the
+// fee that is actually charged.
 export const SERVICE_FEES = {
-  property: 25, family: 25, errand: 12, urgent: 37, documents: 20, funeral: 52,
-  };
+  property: 25, family: 40, errand: 12, urgent: 37, documents: 20, funeral: 52,
+};
 
 export const SERVICE_FEE_NOTES = {
   property: "30 min included, then £2 per extra 5 min",
@@ -368,17 +371,19 @@ export const SERVICE_FEE_NOTES = {
 };
 const WISE = { name: import.meta.env.VITE_WISE_ACCOUNT_NAME || "", bank: import.meta.env.VITE_WISE_BANK_NAME || "", account: import.meta.env.VITE_WISE_ACCOUNT_NUMBER || "", sort: import.meta.env.VITE_WISE_SORT_CODE || "", iban: import.meta.env.VITE_WISE_IBAN || "", bic: import.meta.env.VITE_WISE_BIC || "" };
 const PAYPAL_LINK = import.meta.env.VITE_PAYPAL_LINK || "";
+export const gbp = (n) => "\u00A3" + Number(n || 0).toFixed(2);
 const payRef = (id) => "DD-" + String(id || "").replace(/-/g, "").slice(0, 6).toUpperCase();
 
+// Both methods land in the Wise account: bank transfers go straight in, and
+// Stripe card takings are paid out to the same Wise account.
 const PAY_METHODS = [
   { id: "card", label: "Card" },
-  { id: "paypal", label: "PayPal" },
   { id: "bank", label: "Bank transfer" },
 ];
 
 function PayInstructions({ request, goto, onConfirmSent }) {
   if (!request) return null;
-  const reference = payRef(request.id);
+  const reference = request.paymentRef || payRef(request.id);
   const isBank = request.payMethod === "bank";
   const sent = request.status === "payment_review";
   const configured = isBank ? Boolean(WISE.account || WISE.iban) : Boolean(PAYPAL_LINK);
@@ -393,7 +398,7 @@ function PayInstructions({ request, goto, onConfirmSent }) {
       <TopBar title={isBank ? "Bank transfer" : "Pay with PayPal"} onBack={() => goto("requests")} />
       <div style={{ padding: 16 }}>
         <Card>
-          <div style={{ fontFamily: "'Spectral', serif", fontSize: 18, fontWeight: 700, color: C.charcoal }}>{"\u00A3"}{request.fee}.00 to pay</div>
+          <div style={{ fontFamily: "'Spectral', serif", fontSize: 18, fontWeight: 700, color: C.charcoal }}>{gbp(request.fee)} to pay</div>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginBottom: 12 }}>{request.title}</div>
           <div style={{ background: C.tealLight, borderRadius: 10, padding: "10px 12px" }}>
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft }}>Your payment reference, please include it</div>
@@ -419,7 +424,7 @@ function PayInstructions({ request, goto, onConfirmSent }) {
         ) : (
           <Card>
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 10, lineHeight: 1.6 }}>
-              Open PayPal, send {"\u00A3"}{request.fee}.00 and put {reference} in the note so we can match it to your errand.
+              Open PayPal, send {gbp(request.fee)} and put {reference} in the note so we can match it to your errand.
             </div>
             <a href={PAYPAL_LINK} target="_blank" rel="noopener noreferrer" style={{ display: "block", textAlign: "center", padding: "12px 16px", borderRadius: 10, background: C.tealDark, color: "#fff", fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>Open PayPal</a>
           </Card>
@@ -427,12 +432,12 @@ function PayInstructions({ request, goto, onConfirmSent }) {
         <Card>
           {sent ? (
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, lineHeight: 1.6 }}>
-              Thank you. We are checking for your payment. Your errand goes out to agents as soon as it lands.
+              Thank you. We are checking our account for your payment. As soon as it arrives we will email you to confirm, and your request goes out to agents.
             </div>
           ) : (
             <div>
               <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft, marginBottom: 10, lineHeight: 1.6 }}>
-                Once the money has left your account, let us know. We check every payment by hand, and your errand only goes out to agents after it arrives.
+                Once the money has left your account, tap the button below. We confirm by email only when it has actually reached us, and your request goes out to agents after that.
               </div>
               <Button full disabled={!configured} onClick={() => onConfirmSent(request.id)}>Confirm transfer complete</Button>
             </div>
@@ -444,7 +449,7 @@ function PayInstructions({ request, goto, onConfirmSent }) {
   );
 }
 
-function NewRequest({ presetService, onCreate, goto }) {
+function NewRequest({ presetService, onCreate, goto, prices }) {
   const [service, setService] = useState(presetService || SERVICES[0].id);
   const [title, setTitle] = useState("");
   const [city, setCity] = useState("");
@@ -452,7 +457,9 @@ function NewRequest({ presetService, onCreate, goto }) {
   const [payMethod, setPayMethod] = useState("card");
 
   const canSubmit = title.trim() && city.trim();
-  const fee = SERVICE_FEES[service] ?? 15;
+  const live = prices && prices[service];
+  const fee = live ? live.fee : (SERVICE_FEES[service] ?? 15);
+  const feeNote = live ? live.note : SERVICE_FEE_NOTES[service];
 
   return (
     <div>
@@ -519,15 +526,15 @@ function NewRequest({ presetService, onCreate, goto }) {
             <span style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal }}>
               {SERVICES.find((s) => s.id === service)?.label} service fee
             </span>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600, color: C.tealDark }}>£{fee}.00</span>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 600, color: C.tealDark }}>{gbp(fee)}</span>
           </div>
-          {SERVICE_FEE_NOTES[service] && (
+          {feeNote && (
             <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.tealDark, marginBottom: 4 }}>
-            {SERVICE_FEE_NOTES[service]}
+            {feeNote}
           </div>
           )}
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft, marginBottom: 12 }}>
-            Includes agent dispatch, photo report and WhatsApp updates. Charged only once an agent is confirmed.
+            Includes agent dispatch, photo report and updates from our team. Your request goes to agents once payment has reached us.
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             {PAY_METHODS.map((m) => (
@@ -550,9 +557,9 @@ function NewRequest({ presetService, onCreate, goto }) {
         <div style={{ marginTop: 8 }}>
           <Button
             full disabled={!canSubmit}
-            onClick={() => canSubmit && onCreate({ service, title, city, notes, fee, payMethod })}
+            onClick={() => canSubmit && onCreate({ service, title, city, notes, payMethod })}
           >
-            Pay £{fee}.00 & confirm agent <ArrowRight size={15} />
+            {payMethod === "card" ? `Pay ${gbp(fee)} by card` : `Book and pay ${gbp(fee)} by transfer`} <ArrowRight size={15} />
           </Button>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.charcoalSoft, textAlign: "center", marginTop: 8 }}>
             Secure payment · Refunded in full if no agent is available
@@ -593,43 +600,18 @@ function RequestDetail({ request, goto, onSendMessage }) {
             <div>
               <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft }}>Your agent</div>
               <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 14, color: C.charcoal }}>{request.agent}</div>
-            </div>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.tealLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Phone size={15} color={C.teal} />
+              <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft, marginTop: 2 }}>Managed by the Diaspora Direct team. Message us below for anything you need.</div>
             </div>
           </Card>
         )}
 
-        <Card style={{ background: C.tealLight, border: "none" }}>
-          <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 12.5, color: C.tealDark, marginBottom: 3 }}>
-            {request.status === "completed" ? "Tip your agent" : "Need something else while they're there?"}
-          </div>
-          <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11, color: C.charcoalSoft, marginBottom: 10 }}>
-            {request.status === "completed"
-              ? "Say thank you for a job well done. 100% goes to the agent."
-              : "Add an extra errand at the same location for a reduced fee."}
-          </div>
-          <Button variant="dark">
-            {request.status === "completed" ? "Pay £5 tip" : "Add task, pay £8"} <ArrowRight size={14} />
-          </Button>
-        </Card>
 
         <div style={{ fontFamily: "'Spectral', serif", fontSize: 14, fontWeight: 600, margin: "14px 0 8px", color: C.charcoal }}>
-          Messages
+          Messages with Diaspora Direct
         </div>
-        {request.agentPhone && (
-          <a
-            href={`https://wa.me/${request.agentPhone.replace(/[^0-9]/g, "")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "flex", alignItems: "center", gap: 6, color: "#25D366", fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, fontWeight: 600, marginBottom: 10, textDecoration: "none" }}
-          >
-            <MessageCircle size={15} /> Message on WhatsApp
-          </a>
-        )}
         <div style={{ marginBottom: 10 }}>
           {request.messages.length === 0 && (
-            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No messages yet.</div>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No messages yet. Questions or extra instructions? Write to our team here.</div>
           )}
           {request.messages.map((m, i) => (
             <div key={i} style={{ display: "flex", justifyContent: m.from === "client" ? "flex-end" : "flex-start", marginBottom: 8 }}>
@@ -641,6 +623,7 @@ function RequestDetail({ request, goto, onSendMessage }) {
                   fontFamily: "'Work Sans', sans-serif", fontSize: 13,
                 }}
               >
+                {m.from !== "client" && <div style={{ fontSize: 10.5, fontWeight: 600, marginBottom: 2, color: C.tealDark }}>Diaspora Direct</div>}
                 {m.text}
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, opacity: 0.7, marginTop: 4 }}>{m.time}</div>
               </div>
@@ -685,6 +668,33 @@ function ClientRequests({ requests, goto }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function ChangePassword() {
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const save = async () => {
+    if (pw.length < 8) { setMsg({ ok: false, text: "Use at least 8 characters." }); return; }
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    setBusy(false);
+    if (error) setMsg({ ok: false, text: error.message || "We could not change your password." });
+    else { setPw(""); setMsg({ ok: true, text: "Password changed." }); }
+  };
+  return (
+    <Card>
+      <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 8 }}>Change password</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          type="password" value={pw} onChange={(e) => { setPw(e.target.value); setMsg(null); }} placeholder="New password"
+          style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid " + C.line, fontFamily: "'Work Sans', sans-serif", fontSize: 13, boxSizing: "border-box" }}
+        />
+        <Button variant="secondary" onClick={save} disabled={busy || !pw}>{busy ? "Saving..." : "Save"}</Button>
+      </div>
+      {msg && <div style={{ fontSize: 11.5, color: msg.ok ? C.teal : C.alert, marginTop: 6 }}>{msg.text}</div>}
+    </Card>
   );
 }
 
@@ -750,7 +760,7 @@ function ClientProfile({ setRole, profile }) {
         <Card>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 4 }}>Mobile number</div>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft, marginBottom: 8, lineHeight: 1.4 }}>
-            Optional. Shared only with the agent you're matched with, so you can message on WhatsApp.
+            Optional. Only the Diaspora Direct team sees it, so we can reach you about your requests.
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <input
@@ -771,6 +781,7 @@ function ClientProfile({ setRole, profile }) {
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 4 }}>WhatsApp support</div>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: C.charcoalSoft }}>+44 7778 392915</div>
         </Card>
+        <ChangePassword />
         <Card>
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginBottom: 8 }}>Legal & privacy</div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
@@ -908,7 +919,9 @@ function AgentHome({ queue, mine, goto, setRole, approved }) {
   );
 }
 
-function AgentTask({ request, goto, onAccept, onAdvance }) {
+function AgentTask({ request, goto, onAccept, onAdvance, onSendMessage }) {
+  const [draft, setDraft] = useState("");
+  if (!request) return null;
   const svc = SERVICES.find((s) => s.id === request.service);
   const nextStep = STEPS[STEPS.findIndex((s) => s === request.status) + 1];
   return (
@@ -932,16 +945,6 @@ function AgentTask({ request, goto, onAccept, onAdvance }) {
           <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal }}>{request.notes}</div>
         </Card>
 
-        {request.clientPhone && (
-          <a
-            href={`https://wa.me/${request.clientPhone.replace(/[^0-9]/g, "")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "flex", alignItems: "center", gap: 6, color: "#25D366", fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, fontWeight: 600, margin: "0 0 10px" }}
-          >
-            <MessageCircle size={15} /> Message client on WhatsApp
-          </a>
-        )}
 
         {request.status === "requested" ? (
           <Button full onClick={() => onAccept(request.id)}>Accept task</Button>
@@ -955,9 +958,46 @@ function AgentTask({ request, goto, onAccept, onAdvance }) {
           </div>
         )}
 
-        <div style={{ marginTop: 10 }}>
-          <Button full variant="secondary"><Camera size={15} /> Attach photo evidence</Button>
-        </div>
+        {request.status !== "requested" && (
+          <>
+            <div style={{ fontFamily: "'Spectral', serif", fontSize: 14, fontWeight: 600, margin: "18px 0 6px", color: C.charcoal }}>
+              Messages with Diaspora Direct
+            </div>
+            <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft, marginBottom: 10, lineHeight: 1.5 }}>
+              Do not contact the client directly. Send questions and updates here, and photos to the Diaspora Direct WhatsApp, quoting {request.paymentRef || "the job reference"}.
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              {(request.messages || []).length === 0 && (
+                <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No messages yet.</div>
+              )}
+              {(request.messages || []).map((m, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: m.from === "agent" ? "flex-end" : "flex-start", marginBottom: 8 }}>
+                  <div style={{ maxWidth: "78%", padding: "9px 12px", borderRadius: 14, background: m.from === "agent" ? C.teal : C.tealLight, color: m.from === "agent" ? "#fff" : C.charcoal, fontFamily: "'Work Sans', sans-serif", fontSize: 13 }}>
+                    {m.from !== "agent" && <div style={{ fontSize: 10.5, fontWeight: 600, marginBottom: 2, color: C.tealDark }}>Diaspora Direct</div>}
+                    {m.text}
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, opacity: 0.7, marginTop: 4 }}>{m.time}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Message Diaspora Direct" style={{ ...inputStyle, flex: 1 }} />
+              <button
+                onClick={() => { if (draft.trim()) { onSendMessage(request.id, draft); setDraft(""); } }}
+                style={{ background: C.marigold, border: "none", borderRadius: 10, width: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+              >
+                <Send size={16} color="#3A2A00" />
+              </button>
+            </div>
+            <a
+              href={`https://wa.me/447778392915?text=${encodeURIComponent("Photos for job " + (request.paymentRef || ""))}`}
+              target="_blank" rel="noopener noreferrer"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, padding: "11px 0", borderRadius: 10, border: "1px solid " + C.line, color: C.tealDark, fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, fontWeight: 600, textDecoration: "none" }}
+            >
+              <Camera size={15} /> Send photos to Diaspora Direct
+            </a>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1128,6 +1168,7 @@ async function loadApprovedAgentOptions() {
 }
 
 function AdminHome({ setRole, goto }) {
+const [paymentsToCheck, setPaymentsToCheck] = useState([]);
 const [pendingAgents, setPendingAgents] = useState([]);
 const [allAgents, setAllAgents] = useState([]);
 const [recentRequests, setRecentRequests] = useState([]);
@@ -1174,10 +1215,12 @@ setAllAgents(allRows.map((a) => ({
   completedCount: (jobCounts[a.id] || { completed: 0 }).completed,
 })));
 
-const { data: reqData } = await supabase.from("requests").select("*").order("created_at", { ascending: false }).limit(20);
+const { data: reqData } = await supabase.from("requests").select("*").order("created_at", { ascending: false }).limit(30);
 setRecentRequests(reqData || []);
+const { data: toCheck } = await supabase.from("requests").select("*").in("status", ["payment_review", "awaiting_transfer"]).is("paid_at", null).order("created_at", { ascending: true });
+setPaymentsToCheck(toCheck || []);
 
-const { data: clientProfiles } = await supabase.from("profiles").select("id, full_name, email, phone, created_at").eq("role", "client").order("full_name", { ascending: true });
+const { data: clientProfiles } = await supabase.from("profiles").select("id, full_name, email, phone, created_at").eq("role", "client").order("created_at", { ascending: false }).limit(200);
 const { data: allClientRequests } = await supabase.from("requests").select("client_id");
 const requestCounts = {};
 (allClientRequests || []).forEach((r) => {
@@ -1189,7 +1232,8 @@ setLoading(false);
 
 useEffect(() => {
     loadAdminData();
-    const intervalId = setInterval(loadAdminData, 30000);
+    // Refresh every minute, but only while the app is on screen.
+    const intervalId = setInterval(() => { if (document.visibilityState === "visible") loadAdminData(); }, 60000);
     return () => clearInterval(intervalId);
   }, []);
 
@@ -1243,15 +1287,32 @@ return (
 <div>
 <TopBar title="Admin" />
 <div style={{ padding: 16 }}>
-<div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, marginBottom: 8, color: C.charcoal }}>
-Agents awaiting approval
-</div>
-{loading && <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>Loading…</div>}
-{!loading && pendingAgents.length === 0 && (
-<div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft, marginBottom: 16 }}>
-No agents waiting right now.
-</div>
+<div style={{ ...sectionTitle, marginTop: 0 }}>Payments to check ({paymentsToCheck.length})</div>
+{!loading && paymentsToCheck.length === 0 && (
+<div style={{ ...smallText, marginBottom: 12 }}>No bank transfers waiting.</div>
 )}
+{paymentsToCheck.map((r) => (
+<Card key={r.id}>
+<div onClick={() => goto("adminRequest", r.id)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+<div>
+<div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: C.tealDark, fontWeight: 600 }}>{r.payment_ref} · {gbp(r.fee)}</div>
+<div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal, marginTop: 2 }}>{r.title}</div>
+<div style={{ ...smallText, marginTop: 2 }}>{r.status === "payment_review" ? "Client says it has been sent" : "Waiting for the client to send it"}</div>
+</div>
+<StatusPill status={r.status} />
+</div>
+<MarkPaidButton request={r} onDone={loadAdminData} />
+</Card>
+))}
+
+<div style={sectionTitle}>Add an agent</div>
+<div style={{ ...smallText, marginBottom: 8 }}>Agents cannot sign up in the app. Add them here once you have vetted them.</div>
+<AdminAddAgent onAdded={loadAdminData} />
+
+{pendingAgents.length > 0 && (
+<div style={sectionTitle}>Older agent sign ups awaiting a decision</div>
+)}
+{loading && <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>Loading…</div>}
 {pendingAgents.map((a) => (
 <Card key={a.id}>
 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1351,10 +1412,10 @@ style={{ background: "transparent", border: `1px solid ${C.teal}`, color: C.teal
 <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: C.charcoalSoft }}>No requests yet.</div>
 )}
 {recentRequests.map((r) => (
-<Card key={r.id}>
+<Card key={r.id} onClick={() => goto("adminRequest", r.id)}>
 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
 <div>
-<div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: C.charcoalSoft }}>{r.id}</div>
+<div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: C.charcoalSoft }}>{r.payment_ref || r.id}</div>
 <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal, marginTop: 2 }}>
 {r.title}
 </div>
@@ -1527,6 +1588,190 @@ function AdminAgentPanel({ agentId, goto }) {
   );
 }
 
+async function authedPost(path, body) {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Please sign in again.");
+  const resp = await fetch(apiUrl(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json.error || "Something went wrong. Please try again.");
+  return json;
+}
+
+const smallText = { fontFamily: "'Work Sans', sans-serif", fontSize: 12, color: C.charcoalSoft };
+const sectionTitle = { fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 600, margin: "18px 0 8px", color: C.charcoal };
+
+// Admin only: register a new agent. Agents cannot sign themselves up.
+function AdminAddAgent({ onAdded }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ fullName: "", email: "", phone: "", region: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [result, setResult] = useState(null);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const submit = async () => {
+    setBusy(true); setErr(""); setResult(null);
+    try {
+      const json = await authedPost("/api/admin-create-agent", form);
+      setResult(json);
+      setForm({ fullName: "", email: "", phone: "", region: "" });
+      onAdded && onAdded();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!open) {
+    return <Button full variant="secondary" onClick={() => { setOpen(true); setResult(null); }}><PlusCircle size={15} /> Add an agent</Button>;
+  }
+  return (
+    <Card>
+      <div style={{ fontFamily: "'Spectral', serif", fontSize: 15, fontWeight: 700, color: C.charcoal, marginBottom: 8 }}>Add an agent</div>
+      <input style={{ ...inputStyle, marginBottom: 8 }} placeholder="Full name" value={form.fullName} onChange={set("fullName")} />
+      <input style={{ ...inputStyle, marginBottom: 8 }} type="email" placeholder="Email" value={form.email} onChange={set("email")} />
+      <input style={{ ...inputStyle, marginBottom: 8 }} type="tel" placeholder="Mobile (optional)" value={form.phone} onChange={set("phone")} />
+      <input style={{ ...inputStyle, marginBottom: 10 }} placeholder="Area, e.g. Bulawayo" value={form.region} onChange={set("region")} />
+      {err && <div role="alert" style={{ ...smallText, color: C.alert, marginBottom: 8 }}>{err}</div>}
+      {result && (
+        <div style={{ background: C.tealLight, borderRadius: 10, padding: 10, marginBottom: 10, ...smallText, color: C.tealDark, lineHeight: 1.5 }}>
+          {result.promoted
+            ? <>The existing account {result.email} is now an approved agent. They can log in with their usual password.</>
+            : <>Agent created and approved. Send these login details to them privately (they will not be shown again):<br />
+                Email: <b>{result.email}</b><br />Temporary password: <b style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{result.tempPassword}</b><br />
+                They can change the password in Profile after logging in.</>}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button variant="ghost" full onClick={() => setOpen(false)} disabled={busy}>Close</Button>
+        <Button full onClick={submit} disabled={busy || !form.fullName.trim() || !form.email.trim()}>{busy ? "Adding..." : "Add agent"}</Button>
+      </div>
+    </Card>
+  );
+}
+
+function MarkPaidButton({ request, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const go = async () => {
+    setBusy(true); setErr("");
+    try {
+      await authedPost("/api/admin-confirm-payment", { requestId: request.id });
+      onDone && onDone();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false); setConfirming(false);
+    }
+  };
+  return (
+    <div style={{ marginTop: 10 }}>
+      {confirming ? (
+        <div>
+          <div style={{ ...smallText, marginBottom: 8, color: C.charcoal }}>
+            Only confirm once {gbp(request.fee)} with reference {request.payment_ref} is in the Wise account. The client gets a payment confirmation email and the job goes to agents.
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="ghost" full onClick={() => setConfirming(false)} disabled={busy}>Cancel</Button>
+            <Button full onClick={go} disabled={busy}>{busy ? "Saving..." : "Yes, it has arrived"}</Button>
+          </div>
+        </div>
+      ) : (
+        <Button full variant="dark" onClick={() => setConfirming(true)}><CheckCircle2 size={15} /> Mark payment received</Button>
+      )}
+      {err && <div role="alert" style={{ ...smallText, color: C.alert, marginTop: 6 }}>{err}</div>}
+    </div>
+  );
+}
+
+// One conversation between Diaspora Direct and either the client or the agent.
+function AdminThread({ requestId, thread, title, adminId }) {
+  const [msgs, setMsgs] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [err, setErr] = useState("");
+  const load = async () => {
+    const { data } = await supabase.from("messages").select("*").eq("request_id", requestId).eq("thread", thread).order("created_at", { ascending: true });
+    setMsgs(data || []);
+  };
+  useEffect(() => { load(); }, [requestId, thread]);
+  const send = async () => {
+    if (!draft.trim()) return;
+    setErr("");
+    const { error } = await supabase.from("messages").insert({ request_id: requestId, sender_id: adminId, content: draft.trim(), thread });
+    if (error) { setErr(error.message || "Message not sent."); return; }
+    setDraft("");
+    load();
+  };
+  return (
+    <Card>
+      <div style={{ fontFamily: "'Spectral', serif", fontSize: 14, fontWeight: 700, color: C.charcoal, marginBottom: 8 }}>{title}</div>
+      {msgs.length === 0 && <div style={{ ...smallText, marginBottom: 8 }}>No messages yet.</div>}
+      {msgs.map((m) => {
+        const mine = m.sender_id === adminId;
+        return (
+          <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginBottom: 8 }}>
+            <div style={{ maxWidth: "80%", padding: "8px 11px", borderRadius: 12, background: mine ? C.teal : C.tealLight, color: mine ? "#fff" : C.charcoal, fontFamily: "'Work Sans', sans-serif", fontSize: 12.5 }}>
+              {m.content}
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, opacity: 0.7, marginTop: 3 }}>
+                {new Date(m.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Reply to ${thread}`} style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={send} style={{ background: C.marigold, border: "none", borderRadius: 10, width: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <Send size={16} color="#3A2A00" />
+        </button>
+      </div>
+      {err && <div role="alert" style={{ ...smallText, color: C.alert, marginTop: 6 }}>{err}</div>}
+    </Card>
+  );
+}
+
+function AdminRequestPanel({ requestId, goto, adminId }) {
+  const [request, setRequest] = useState(null);
+  const [client, setClient] = useState(null);
+  const [agentOptions, setAgentOptions] = useState([]);
+  const load = async () => {
+    const { data } = await supabase.from("requests").select("*").eq("id", requestId).maybeSingle();
+    setRequest(data || null);
+    if (data) {
+      const { data: prof } = await supabase.from("profiles").select("full_name, email, phone").eq("id", data.client_id).maybeSingle();
+      setClient(prof || null);
+    }
+    setAgentOptions(await loadApprovedAgentOptions());
+  };
+  useEffect(() => { load(); }, [requestId]);
+  if (!request) return (<div><TopBar title="Request" onBack={() => goto("home")} /><div style={{ padding: 16, ...smallText }}>Loading…</div></div>);
+  const awaitingMoney = ["awaiting_transfer", "payment_review", "pending_payment"].includes(request.status) && !request.paid_at;
+  return (
+    <div>
+      <TopBar title={request.payment_ref || "Request"} onBack={() => goto("home")} />
+      <div style={{ padding: 16 }}>
+        <Card>
+          <div style={{ ...smallText }}>{client?.full_name || "Client"} · {client?.email || ""}{client?.phone ? ` · ${client.phone}` : ""}</div>
+          <div style={{ ...smallText, marginTop: 4 }}>
+            {gbp(request.fee)} by {request.pay_method === "bank" ? "bank transfer" : request.pay_method}
+            {request.paid_at ? ` · paid ${new Date(request.paid_at).toLocaleDateString("en-GB")}` : " · not paid yet"}
+          </div>
+          {request.description && <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 13, color: C.charcoal, marginTop: 8 }}>{request.description}</div>}
+          {awaitingMoney && request.pay_method !== "card" && <MarkPaidButton request={request} onDone={load} />}
+        </Card>
+        <AdminRequestRow key={request.id + request.status} request={request} agentOptions={agentOptions} onUpdated={(r) => setRequest(r)} />
+        <AdminThread requestId={request.id} thread="client" title="Messages with the client" adminId={adminId} />
+        <AdminThread requestId={request.id} thread="agent" title="Messages with the agent" adminId={adminId} />
+      </div>
+    </div>
+  );
+}
+
 export default function DiasporaDirectApp({ profile, onSignOut }) {
   const role = profile.role;
   const [screen, setScreen] = useState("home");
@@ -1537,6 +1782,17 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
   const [queue, setQueue] = useState([]);
   const [agentRow, setAgentRow] = useState(null);
   const [agentNames, setAgentNames] = useState({});
+  const [prices, setPrices] = useState(null);
+
+  // Live prices from Supabase, so they can change without an app release.
+  useEffect(() => {
+    supabase.from("services").select("id, base_fee, fee_note, active").then(({ data }) => {
+      if (!data || data.length === 0) return;
+      const map = {};
+      data.filter((s) => s.active).forEach((s) => { map[s.id] = { fee: Number(s.base_fee), note: s.fee_note }; });
+      setPrices(map);
+    });
+  }, []);
 
   const buildLog = (status) => STEPS.map((s) => ({
     step: s,
@@ -1544,23 +1800,20 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     time: STEPS.indexOf(s) <= STEPS.indexOf(status) ? "—" : "",
   }));
 
-  const mapRequestRow = (r, names, phones) => ({
+  const mapRequestRow = (r, names) => ({
     id: r.id, service: r.category, title: r.title, country: r.country || "Zimbabwe", city: r.city,
     status: r.status, agent: r.agent_id ? ((names && names[r.agent_id]) || "Assigned agent") : null,
-    agentId: r.agent_id, notes: r.description, fee: r.fee, payMethod: r.pay_method, paid: true,
+    agentId: r.agent_id, notes: r.description, fee: r.fee, payMethod: r.pay_method, paid: Boolean(r.paid_at),
+    paidAt: r.paid_at, paymentRef: r.payment_ref,
     agentFee: r.agent_fee, completedAt: r.completed_at, paidOutAt: r.paid_out_at,
-    agentPhone: r.agent_id ? ((phones && phones[r.agent_id]) || null) : null,
-    clientPhone: (phones && phones[r.client_id]) || null,
     messages: [], log: buildLog(r.status),
   });
 
   const loadAgentRow = async () => {
     let { data } = await supabase.from("agents").select("*").eq("profile_id", profile.id).maybeSingle();
-    if (!data) {
-      const { data: created } = await supabase.from("agents").insert({ profile_id: profile.id }).select().single();
-      data = created;
-    }
-    setAgentRow(data);
+    // Agents are created by the admin only, so a missing row means this
+    // account has not been set up as an agent yet.
+    setAgentRow(data || { approved: false });
     return data;
   };
 
@@ -1578,45 +1831,19 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     return nameByAgent;
   };
 
-  const loadAgentPhones = async (rows) => {
-    const ids = [...new Set(rows.map((r) => r.agent_id).filter(Boolean))];
-    if (ids.length === 0) return {};
-    const { data } = await supabase.from("agents").select("id, profile_id").in("id", ids);
-    if (!data || data.length === 0) return {};
-    const profileIds = data.map((a) => a.profile_id);
-    const { data: profs } = await supabase.from("profiles").select("id, phone").in("id", profileIds);
-    const phoneByProfile = {};
-    (profs || []).forEach((p) => { phoneByProfile[p.id] = p.phone; });
-    const phoneByAgent = {};
-    data.forEach((a) => { phoneByAgent[a.id] = phoneByProfile[a.profile_id] || null; });
-    return phoneByAgent;
-  };
-
-  const loadClientPhones = async (rows) => {
-    const ids = [...new Set(rows.map((r) => r.client_id).filter(Boolean))];
-    if (ids.length === 0) return {};
-    const { data } = await supabase.from("profiles").select("id, phone").in("id", ids);
-    const phoneByClient = {};
-    (data || []).forEach((p) => { phoneByClient[p.id] = p.phone; });
-    return phoneByClient;
-  };
-
-
   const loadData = async () => {
     if (role === "client") {
       const { data } = await supabase.from("requests").select("*").eq("client_id", profile.id).order("created_at", { ascending: false });
       const rows = data || [];
       const names = await loadAgentNames(rows);
-      const phones = await loadAgentPhones(rows);
       setAgentNames(names);
-      setRequests(rows.map((r) => mapRequestRow(r, names, phones)));
+      setRequests(rows.map((r) => mapRequestRow(r, names)));
     } else if (role === "agent") {
       const agent = await loadAgentRow();
       const { data: unclaimed } = await supabase.from("requests").select("*").eq("status", "requested").is("agent_id", null).order("created_at", { ascending: false });
       const mineRes = agent ? await supabase.from("requests").select("*").eq("agent_id", agent.id).order("created_at", { ascending: false }) : { data: [] };
-      const clientPhones = await loadClientPhones(mineRes.data || []);
       setQueue((unclaimed || []).map((r) => mapRequestRow(r, {})));
-      setRequests((mineRes.data || []).map((r) => ({ ...mapRequestRow(r, {}, clientPhones), agent: "You" })));
+      setRequests((mineRes.data || []).map((r) => ({ ...mapRequestRow(r, {}), agent: "You" })));
     }
   };
 
@@ -1638,20 +1865,20 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
             body: JSON.stringify({ sessionId }),
           });
           const json = await resp.json();
+          // The server checks with Stripe and records the payment itself.
           if (json.paid && requestId) {
-            await supabase.from("requests").update({ status: "requested" }).eq("id", requestId);
-            setBanner({ kind: "success", text: "Payment received — your request is now live. An agent will pick it up shortly." });
+            setBanner({ kind: "success", text: "Payment received. Your request is now with our team, and a confirmation email is on its way." });
           } else {
-            setBanner({ kind: "warn", text: "We couldn't confirm your payment yet. If you were charged, it will appear here shortly — no need to pay again." });
+            setBanner({ kind: "warn", text: "We have not received confirmation of your payment yet. If you were charged, we will email you as soon as it is confirmed. No need to pay again." });
           }
         } catch (e) {
-          setBanner({ kind: "warn", text: "We couldn't confirm your payment yet. If you were charged, it will appear here shortly — no need to pay again." });
+          setBanner({ kind: "warn", text: "We have not received confirmation of your payment yet. If you were charged, we will email you as soon as it is confirmed. No need to pay again." });
         }
       } else if (checkout === "cancel" && requestId) {
         try {
           await supabase.from("requests").update({ status: "cancelled" }).eq("id", requestId);
         } catch (e) {}
-        setBanner({ kind: "warn", text: "Payment cancelled — your request was not submitted." });
+        setBanner({ kind: "warn", text: "Payment cancelled. Your request was not submitted." });
       }
       if (cleanUrl) window.history.replaceState({}, "", window.location.pathname);
       await loadData();
@@ -1678,9 +1905,9 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
   }, []);
 
   const loadMessages = async (requestId) => {
-    const { data } = await supabase.from("messages").select("*").eq("request_id", requestId).order("created_at", { ascending: true });
+    const { data } = await supabase.from("messages").select("*").eq("request_id", requestId).eq("thread", role === "agent" ? "agent" : "client").order("created_at", { ascending: true });
     return (data || []).map((m) => ({
-      from: m.sender_id === profile.id ? role : (role === "client" ? "agent" : "client"),
+      from: m.sender_id === profile.id ? role : "team",
       text: m.content,
       time: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     }));
@@ -1705,11 +1932,11 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     onSignOut();
   };
 
-  const handleCreate = async ({ service, title, city, notes, fee, payMethod }) => {
-    const initialStatus = payMethod === "card" ? "pending_payment" : "awaiting_transfer";
+  const handleCreate = async ({ service, title, city, notes, payMethod }) => {
+    // The database sets the fee, status and payment reference for new requests.
     const { data, error } = await supabase.from("requests").insert({
       client_id: profile.id, category: service, title, city, country: "Zimbabwe",
-      description: notes, fee, pay_method: payMethod, status: initialStatus,
+      description: notes, pay_method: payMethod,
     }).select().single();
 if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) || "We couldn't create your request. Please try again." }); setScreen("home"); return; }    
     if (payMethod === "card") {
@@ -1717,7 +1944,7 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
       try {
         const resp = await fetch(apiUrl("/api/create-checkout-session"), {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId: data.id, title, fee, mobile: Capacitor.isNativePlatform() }),
+          body: JSON.stringify({ requestId: data.id, mobile: Capacitor.isNativePlatform() }),
         });
         const json = await resp.json();
         if (json.url) {
@@ -1742,13 +1969,14 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
   const handleConfirmSent = async (id) => {
     await supabase.from("requests").update({ status: "payment_review" }).eq("id", id);
     setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, status: "payment_review" } : r)));
-    setBanner({ kind: "success", text: "Thank you. We will confirm your payment by hand shortly." });
+    setBanner({ kind: "success", text: "Thank you. We will email you as soon as the money reaches our account." });
   };
 
   const handleSendMessage = async (id, text) => {
     const { data, error } = await supabase.from("messages").insert({
-      request_id: id, sender_id: profile.id, content: text,
+      request_id: id, sender_id: profile.id, content: text, thread: role === "agent" ? "agent" : "client",
     }).select().single();
+    if (error) setBanner({ kind: "warn", text: "Your message did not send. Please try again." });
     if (!error && data) {
       const newMsg = { from: role, text, time: "Now" };
       setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, messages: [...r.messages, newMsg] } : r)));
@@ -1757,12 +1985,19 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
   };
 
   const handleAccept = async (id) => {
-    if (!agentRow) return;
-    const { error } = await supabase.from("requests").update({ agent_id: agentRow.id, status: "assigned" }).eq("id", id);
-    if (!error) {
-      setQueue((q) => q.filter((t) => t.id !== id));
-      await loadData();
+    if (!agentRow || !agentRow.id) return;
+    // Only succeeds if nobody else has taken the job in the meantime.
+    const { data, error } = await supabase.from("requests")
+      .update({ agent_id: agentRow.id, status: "assigned" })
+      .eq("id", id).is("agent_id", null).eq("status", "requested")
+      .select();
+    setQueue((q) => q.filter((t) => t.id !== id));
+    if (error || !data || data.length === 0) {
+      setBanner({ kind: "warn", text: "Sorry, another agent has already taken this task." });
+    } else {
+      setBanner({ kind: "success", text: "Task accepted. It is now in your active tasks." });
     }
+    await loadData();
     setScreen("home");
   };
 
@@ -1772,9 +2007,11 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
     const idx = STEPS.findIndex((s) => s === current.status);
     const next = STEPS[idx + 1];
     if (!next) return;
-    const { error } = await supabase.from("requests").update({ status: next }).eq("id", id);
+    const { error } = await supabase.from("requests").update({ status: next }).eq("id", id).eq("status", current.status);
     if (!error) {
       setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, status: next, log: buildLog(next) } : r)));
+    } else {
+      setBanner({ kind: "warn", text: error.message || "We could not update this task." });
     }
   };
 
@@ -1783,7 +2020,7 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
   let body;
   if (role === "client") {
     if (screen === "home") body = <ClientHome requests={requests} goto={goto} setRole={handleSwitchRole} profile={profile} />;
-    else if (screen === "new") body = <NewRequest presetService={presetService} onCreate={handleCreate} goto={goto} />;
+    else if (screen === "new") body = <NewRequest presetService={presetService} onCreate={handleCreate} goto={goto} prices={prices} />;
     else if (screen === "detail" && selected) body = <RequestDetail request={selected} goto={goto} onSendMessage={handleSendMessage} />;
     else if (screen === "requests") body = <ClientRequests requests={requests} goto={goto} />;
     else if (screen === "payinfo") body = <PayInstructions request={selected} goto={goto} onConfirmSent={handleConfirmSent} />;
@@ -1793,7 +2030,7 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
     if (screen === "home") body = <AgentHome queue={queue} mine={requests.filter((r) => r.agent === "You")} goto={goto} setRole={handleSwitchRole} approved={agentRow ? agentRow.approved !== false : undefined} />;
     else if (screen === "task") {
       const task = requests.find((r) => r.id === selectedId) || queue.find((r) => r.id === selectedId);
-      body = <AgentTask request={task} goto={goto} onAccept={handleAccept} onAdvance={handleAdvance} />;
+      body = <AgentTask request={task} goto={goto} onAccept={handleAccept} onAdvance={handleAdvance} onSendMessage={handleSendMessage} />;
     }
     else if (screen === "earnings") body = <AgentEarnings mine={requests} />;
     else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
@@ -1801,6 +2038,7 @@ if (error || !data) { setBanner({ kind: "warn", text: (error && error.message) |
   } else {
     if (screen === "clientPanel" && selectedId) body = <AdminClientPanel clientId={selectedId} goto={goto} />;
     else if (screen === "agentPanel" && selectedId) body = <AdminAgentPanel agentId={selectedId} goto={goto} />;
+    else if (screen === "adminRequest" && selectedId) body = <AdminRequestPanel requestId={selectedId} goto={goto} adminId={profile.id} />;
     else if (screen === "profile") body = <ClientProfile setRole={handleSwitchRole} profile={profile} />;
     else body = <AdminHome goto={goto} setRole={handleSwitchRole} />;
   }
@@ -1878,7 +2116,7 @@ const tabs = role === "client" ? clientTabs : role === "admin" ? adminTabs : age
         {/* bottom tabs */}
         <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "#fff", position: "sticky", bottom: 0, zIndex: 10, paddingBottom: "env(safe-area-inset-bottom)" }}>
           {tabs.map((t) => {
-            const active = screen === t.id || (t.id === "home" && !["new", "detail", "requests", "profile", "task", "earnings", "clientPanel", "agentPanel"].includes(screen));
+            const active = screen === t.id || (t.id === "home" && !["new", "detail", "requests", "profile", "task", "earnings", "clientPanel", "agentPanel", "adminRequest"].includes(screen));
             return (
               <button
                 key={t.id}

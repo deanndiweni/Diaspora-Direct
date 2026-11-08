@@ -1,61 +1,75 @@
 import Stripe from "stripe";
+import { cors, serviceClient } from "./_lib/server.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Starts a Stripe Checkout for a request. The amount always comes from the
+// database (set by the server when the request was created), never from the
+// app, so a tampered app cannot change what is charged.
 export default async function handler(req, res) {
-  // The native (iOS/Android) app calls this from a different origin, so the
-  // browser sends a CORS preflight OPTIONS request first. Without these
-  // headers that preflight fails with 405 and the real POST is never sent.
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+  if (cors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+  const admin = serviceClient();
+  if (!admin) {
+    res.status(503).json({ error: "Card payments are temporarily unavailable." });
+    return;
+  }
   try {
-    const { requestId, title, fee, mobile } = req.body || {};
-    const amount = Math.round(Number(fee) * 100);
-    if (!requestId || !amount || amount < 30) {
+    const { requestId, mobile } = req.body || {};
+    if (!requestId) {
       res.status(400).json({ error: "Invalid request" });
       return;
     }
+    const { data: request, error } = await admin.from("requests").select("*").eq("id", requestId).maybeSingle();
+    if (error) throw error;
+    if (!request || request.status !== "pending_payment" || request.paid_at) {
+      res.status(400).json({ error: "This request is not waiting for a card payment." });
+      return;
+    }
+    const amount = Math.round(Number(request.fee) * 100);
+    if (!amount || amount < 30) {
+      res.status(400).json({ error: "This request has no price set. Please contact us." });
+      return;
+    }
+    const { data: client } = await admin.from("profiles").select("email").eq("id", request.client_id).maybeSingle();
+
     const requestOrigin = req.headers.origin || "";
-    const origin = /^https?:\/\//i.test(requestOrigin)
-      ? requestOrigin
-      : (process.env.APP_PUBLIC_URL || "https://app.diaspora-direct.com");
     const publicAppUrl = (process.env.APP_PUBLIC_URL || "https://app.diaspora-direct.com").replace(/\/$/, "");
+    const origin = /^https:\/\/(app\.)?diaspora-direct\.com$/i.test(requestOrigin) || /^http:\/\/localhost(:\d+)?$/i.test(requestOrigin)
+      ? requestOrigin
+      : publicAppUrl;
     const returnBase = mobile ? publicAppUrl + "/checkout-redirect.html" : origin + "/";
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
+      customer_email: client?.email || undefined,
       line_items: [
         {
           price_data: {
             currency: "gbp",
             product_data: {
-              name: title ? "Diaspora Direct: " + title : "Diaspora Direct request",
+              name: "Diaspora Direct: " + (request.title || "request"),
+              description: "Reference " + (request.payment_ref || ""),
             },
             unit_amount: amount,
           },
           quantity: 1,
         },
       ],
-      metadata: { request_id: String(requestId) },
+      client_reference_id: String(request.id),
+      metadata: { request_id: String(request.id), payment_ref: request.payment_ref || "" },
+      payment_intent_data: { metadata: { request_id: String(request.id), payment_ref: request.payment_ref || "" } },
       success_url:
-        returnBase +
-        "?checkout=success&request_id=" +
-        encodeURIComponent(requestId) +
-        "&session_id={CHECKOUT_SESSION_ID}",
-      cancel_url:
-        returnBase + "?checkout=cancel&request_id=" + encodeURIComponent(requestId),
+        returnBase + "?checkout=success&request_id=" + encodeURIComponent(request.id) + "&session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: returnBase + "?checkout=cancel&request_id=" + encodeURIComponent(request.id),
     });
+    await admin.from("requests").update({ stripe_session_id: session.id }).eq("id", request.id);
     res.status(200).json({ url: session.url });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error("Checkout creation failed", e);
+    res.status(500).json({ error: "We couldn't start the card payment. Please try again." });
   }
 }
