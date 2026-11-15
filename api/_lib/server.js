@@ -168,6 +168,22 @@ export async function notifyStatusChange(admin, request, oldStatus) {
         `If you were happy with the service, a short Google review helps other families find us:\n${REVIEW_LINK}\n\n` +
         SIGN_OFF,
     });
+  } else if (request.status === "quote_requested") {
+    await emailAdmin(
+      `Price needed: ${ref}`,
+      `${client.full_name || "A client"} has asked for a price for "${request.title}" in ${request.city || "Zimbabwe"} (${request.category}).\n\n${request.description || ""}\n\nOpen the admin screen in the app and send them a price.`
+    );
+  } else if (request.status === "quoted" && !["pending_payment", "awaiting_transfer"].includes(oldStatus)) {
+    await sendEmail({
+      to: client.email,
+      subject: `Your price is ready: ${ref}`,
+      text:
+        hi +
+        `Thank you for your request "${request.title}". Our price is ${money(request.fee)}.\n\n` +
+        (request.quote_note ? `${request.quote_note}\n\n` : "") +
+        `If you are happy with it, open the Diaspora Direct app, go to My requests and tap "Accept and pay". You can pay by card or bank transfer, and your request goes to our agents as soon as payment reaches us.\n\n` +
+        SIGN_OFF,
+    });
   } else if (request.status === "payment_review") {
     await emailAdmin(
       `Bank transfer to check: ${ref}`,

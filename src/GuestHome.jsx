@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowRight, Wallet } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import {
-  C, FONTS, LOGO_B64, SERVICES, SPECIALISTS, SERVICE_FEES, SERVICE_FEE_NOTES, apiUrl,
+  C, FONTS, LOGO_B64, SPECIALISTS, SERVICE_FEES, SERVICE_FEE_NOTES, apiUrl, liveServices, fetchLivePrices,
 } from "./App.jsx";
 
 // Public, no-account-needed landing screen. Anyone can browse the services,
@@ -19,7 +19,7 @@ import {
 const STEPS = [
   { n: "1", label: "Browse", blurb: "Look through the services and pricing below, no account needed." },
   { n: "2", label: "Create an account", blurb: "Only needed when you're ready to book, so we can track your request and keep you updated." },
-  { n: "3", label: "We match an agent", blurb: "A vetted local agent in Zimbabwe usually confirms within about 2 hours." },
+  { n: "3", label: "We match an agent", blurb: "A vetted local agent, anywhere in Zimbabwe, usually confirms within about 2 hours. For custom jobs we send you a price first." },
   { n: "4", label: "Get updates", blurb: "Track progress in the app and get updates from our team." },
 ];
 
@@ -43,6 +43,18 @@ function ExternalLink({ href, children, style }) {
 }
 
 export default function GuestHome({ onRequestAuth }) {
+  const [prices, setPrices] = useState(null);
+  useEffect(() => { fetchLivePrices().then((m) => { if (m) setPrices(m); }).catch(() => {}); }, []);
+  const priceFor = (s) => {
+    const live = prices && prices[s.id];
+    if (s.quote) return "Get a price";
+    const fee = live ? live.fee : SERVICE_FEES[s.id];
+    return fee != null ? "£" + Number(fee).toFixed(0) : "";
+  };
+  const noteFor = (s) => {
+    const live = prices && prices[s.id];
+    return live ? live.note : SERVICE_FEE_NOTES[s.id];
+  };
   return (
     <div style={{
       position: "fixed", top: 0, right: 0, bottom: 0, left: 0,
@@ -95,7 +107,7 @@ export default function GuestHome({ onRequestAuth }) {
               On-the-ground help for family back home, you can trust.
             </div>
             <div style={{ position: "relative", fontFamily: "'Work Sans', sans-serif", fontSize: 12.5, color: "rgba(255,255,255,0.85)", marginBottom: 16, maxWidth: "min(260px, 100%)" }}>
-              Vetted local agents in Zimbabwe for property checks, welfare visits, errands and more. Browse below, no account needed until you're ready to book.
+              Vetted local agents nationwide across Zimbabwe for property checks, welfare visits, errands and more. Need something not listed? Ask and we will send you a price.
             </div>
             <button
               onClick={() => onRequestAuth("signup")}
@@ -115,19 +127,19 @@ export default function GuestHome({ onRequestAuth }) {
             Services & pricing
           </div>
           <div style={{ marginBottom: 20 }}>
-            {SERVICES.map((s) => (
+            {liveServices(prices).map((s) => (
               <div key={s.id} style={{ background: C.sandCard, borderRadius: 14, padding: 14, marginBottom: 10, border: `1px solid ${C.line}`, display: "flex", gap: 12, alignItems: "flex-start", boxSizing: "border-box", width: "100%" }}>
                 <s.icon size={20} color={C.teal} style={{ marginTop: 2, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                     <div style={{ fontFamily: "'Work Sans', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.charcoal, minWidth: 0 }}>{s.label}</div>
                     <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: C.tealDark, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
-                      {"£"}{SERVICE_FEES[s.id]}
+                      {priceFor(s)}
                     </div>
                   </div>
                   <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 11.5, color: C.charcoalSoft, marginTop: 2, lineHeight: 1.4, overflowWrap: "anywhere" }}>{s.blurb}</div>
-                  {SERVICE_FEE_NOTES[s.id] && (
-                    <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.charcoalSoft, marginTop: 3, overflowWrap: "anywhere" }}>{SERVICE_FEE_NOTES[s.id]}</div>
+                  {noteFor(s) && (
+                    <div style={{ fontFamily: "'Work Sans', sans-serif", fontSize: 10.5, color: C.charcoalSoft, marginTop: 3, overflowWrap: "anywhere" }}>{noteFor(s)}</div>
                   )}
                 </div>
               </div>
