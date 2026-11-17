@@ -3,6 +3,10 @@ import { supabase } from "./supabaseClient";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
+import { PushNotifications } from "@capacitor/push-notifications";
+
+// The phone's push token for whoever is signed in, so sign out can remove it.
+let currentPushToken = null;
 import {
   Home, PlusCircle, ClipboardList, User, MessageCircle, ChevronLeft,
   Plane, CheckCircle2, Circle, MapPin, Phone, Camera, Send, ShieldCheck,
@@ -2149,9 +2153,44 @@ export default function DiasporaDirectApp({ profile, onSignOut }) {
     setScreen(s);
   };
 
-  const handleSwitchRole = () => {
+  const handleSwitchRole = async () => {
+    if (currentPushToken) {
+      try { await supabase.rpc("remove_push_token", { p_token: currentPushToken }); } catch (e) {}
+      currentPushToken = null;
+    }
     onSignOut();
   };
+
+  // Push notifications (phone app only): ask once, save this phone's token
+  // against the signed-in account, and open the right request when tapped.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    const handles = [];
+    let cancelled = false;
+    (async () => {
+      try {
+        handles.push(await PushNotifications.addListener("registration", async ({ value }) => {
+          currentPushToken = value;
+          try { await supabase.rpc("register_push_token", { p_token: value, p_platform: Capacitor.getPlatform() }); } catch (e) {}
+        }));
+        handles.push(await PushNotifications.addListener("registrationError", (err) => console.warn("Push registration failed", err)));
+        handles.push(await PushNotifications.addListener("pushNotificationActionPerformed", async ({ notification }) => {
+          const id = notification && notification.data && notification.data.requestId;
+          if (!id) return;
+          await loadData();
+          setSelectedId(id);
+          setScreen(role === "client" ? "detail" : role === "agent" ? "task" : "adminRequest");
+        }));
+        if (cancelled) return;
+        let perm = await PushNotifications.checkPermissions();
+        if (perm.receive === "prompt" || perm.receive === "prompt-with-rationale") perm = await PushNotifications.requestPermissions();
+        if (perm.receive === "granted") await PushNotifications.register();
+      } catch (e) {
+        console.warn("Push setup failed", e);
+      }
+    })();
+    return () => { cancelled = true; handles.forEach((h) => h.remove()); };
+  }, [profile.id]);
 
   // Opens Stripe Checkout for a request already in pending_payment. Returns an
   // error message, or null once the browser has been sent to Stripe.
