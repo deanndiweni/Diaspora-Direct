@@ -1,6 +1,9 @@
 // Shared helpers for the API routes. Files in api/_lib are not exposed as
 // endpoints by Vercel because the folder name starts with an underscore.
 import { createClient } from "@supabase/supabase-js";
+import { pushToProfiles, pushToAdmins, pushToAgent, pushToApprovedAgents } from "./push.js";
+
+export { pushToProfiles, pushToAdmins, pushToAgent, pushToApprovedAgents };
 
 export const REVIEW_LINK = "https://g.page/r/CaEev-cZV_wZECE/review";
 
@@ -134,6 +137,12 @@ export async function markRequestPaid(admin, requestId, { method, stripeSessionI
   if (result.sent) {
     await admin.from("requests").update({ acknowledged_at: new Date().toISOString() }).eq("id", request.id);
   }
+  const data = { requestId: request.id };
+  await Promise.all([
+    pushToProfiles(admin, [request.client_id], { title: "Payment received", body: `Thank you. "${request.title}" is now with our team.`, data }),
+    pushToAdmins(admin, { title: `New paid request ${ref}`, body: `${money(request.fee)} for "${request.title}" in ${request.city || "Zimbabwe"}`, data }),
+    pushToApprovedAgents(admin, { title: "New job available", body: `"${request.title}" in ${request.city || "Zimbabwe"}. Open the app to accept it.`, data }),
+  ]);
   await emailAdmin(
     `New paid request ${ref} (${method || "payment"})`,
     `${client.full_name || "A client"} paid ${money(request.fee)} by ${method || "payment"} for "${request.title}" in ${request.city || "Zimbabwe"}.\n\nIt is now in the agent queue.`
@@ -146,6 +155,7 @@ export async function notifyStatusChange(admin, request, oldStatus) {
   const client = await clientContact(admin, request.client_id);
   const ref = request.payment_ref || "your booking";
   const hi = `Hi ${firstName(client.full_name)},\n\n`;
+  await pushForStatus(admin, request, oldStatus);
   if (request.status === "assigned") {
     await sendEmail({
       to: client.email,
@@ -189,5 +199,39 @@ export async function notifyStatusChange(admin, request, oldStatus) {
       `Bank transfer to check: ${ref}`,
       `${client.full_name || "A client"} says they have sent ${money(request.fee)} for "${request.title}" (reference ${ref}).\n\nCheck the Wise account, then tap "Mark payment received" in the app admin screen.`
     );
+  }
+}
+
+// Phone notifications to go with the status emails above.
+async function pushForStatus(admin, request, oldStatus) {
+  const data = { requestId: request.id };
+  const t = `"${request.title}"`;
+  const toClient = (title, body) => pushToProfiles(admin, [request.client_id], { title, body, data });
+  switch (request.status) {
+    case "assigned":
+      await Promise.all([
+        toClient("An agent is on it", `A vetted agent has been assigned to ${t}.`),
+        pushToAgent(admin, request.agent_id, { title: "New job assigned to you", body: `${t} in ${request.city || "Zimbabwe"}`, data }),
+      ]);
+      break;
+    case "in_progress":
+      await toClient("Work has started", `Your agent has started on ${t}.`);
+      break;
+    case "completed":
+      await toClient("Completed", `${t} is done. Thank you for trusting us.`);
+      break;
+    case "quote_requested":
+      await pushToAdmins(admin, { title: `Price needed ${request.payment_ref || ""}`.trim(), body: `${t} in ${request.city || "Zimbabwe"}`, data });
+      break;
+    case "quoted":
+      if (!["pending_payment", "awaiting_transfer"].includes(oldStatus)) {
+        await toClient("Your price is ready", `${money(request.fee)} for ${t}. Tap to accept and pay.`);
+      }
+      break;
+    case "payment_review":
+      await pushToAdmins(admin, { title: `Bank transfer to check ${request.payment_ref || ""}`.trim(), body: `${money(request.fee)} for ${t}`, data });
+      break;
+    default:
+      break;
   }
 }

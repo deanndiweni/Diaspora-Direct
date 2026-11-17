@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "208204702146",
+    "project_id": "diaspora-direct-5bb17",
+    "storage_bucket": "diaspora-direct-5bb17.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:208204702146:android:5a37c6559113d3bb7ef65b",
+        "android_client_info": {
+          "package_name": "com.diasporadirect.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYP2GiN4v3awgBoo0HPVMX4kLHh27SGxI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

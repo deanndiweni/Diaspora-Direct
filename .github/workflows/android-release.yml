@@ -28,7 +28,7 @@ on:
       versionName:
         description: "Version name shown to users (e.g. 1.0.0)"
         required: false
-        default: "1.0.0"
+        default: "1.0.2"
   push:
     branches: [main]
     paths:
@@ -106,7 +106,7 @@ jobs:
         working-directory: android
         env:
           ANDROID_VERSION_CODE: ${{ github.run_number }}
-          ANDROID_VERSION_NAME: ${{ github.event.inputs.versionName }}
+          ANDROID_VERSION_NAME: ${{ github.event.inputs.versionName || '1.0.2' }}
         # bundleRelease produces the .aab for the Play Store; assembleRelease
         # produces a signed .apk that can be installed directly on a phone
         # (sideloaded) without going through the Play Store at all.

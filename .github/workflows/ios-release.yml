@@ -18,7 +18,7 @@ on:
       versionName:
         description: "Version name shown to users (e.g. 1.0.0)"
         required: false
-        default: "1.0.0"
+        default: "1.0.2"
   push:
     branches: [main]
     paths:
@@ -184,7 +184,7 @@ jobs:
       - name: Build archive
         run: |
           VERSION_NAME="${{ github.event.inputs.versionName }}"
-          if [ -z "$VERSION_NAME" ]; then VERSION_NAME="1.0.0"; fi
+          if [ -z "$VERSION_NAME" ]; then VERSION_NAME="1.0.2"; fi
           xcodebuild archive \
             -project ios/App/App.xcodeproj \
             -scheme App \

@@ -10,5 +10,14 @@
     "contentInset": "never",
     "preferredContentMode": "mobile",
     "scrollEnabled": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
   }
 }
