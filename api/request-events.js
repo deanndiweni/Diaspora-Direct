@@ -1,4 +1,4 @@
-import { serviceClient, notifyStatusChange, emailAdmin } from "./_lib/server.js";
+import { serviceClient, notifyStatusChange, emailAdmin, pushToAdmins, pushToProfiles, pushToAgent } from "./_lib/server.js";
 
 // Called by the database (supabase/migrations/20261108_notifications.sql)
 // whenever a request's status changes or a message is sent. The body only
@@ -42,6 +42,16 @@ export default async function handler(req, res) {
       const message = claimed && claimed[0];
       if (message) {
         const { data: sender } = await admin.from("profiles").select("full_name, role").eq("id", message.sender_id).maybeSingle();
+        const { data: req } = await admin.from("requests").select("id, title, client_id, agent_id").eq("id", message.request_id).maybeSingle();
+        const preview = String(message.content || "").slice(0, 140);
+        const pushData = { requestId: message.request_id };
+        if (sender && sender.role === "admin" && req) {
+          // Diaspora Direct replied: tell whoever is on the other end of that thread.
+          if (message.thread === "agent") await pushToAgent(admin, req.agent_id, { title: "Message from Diaspora Direct", body: preview, data: pushData });
+          else await pushToProfiles(admin, [req.client_id], { title: "Message from Diaspora Direct", body: preview, data: pushData });
+        } else if (sender) {
+          await pushToAdmins(admin, { title: `New message from ${sender.role} ${sender.full_name || ""}`.trim(), body: preview, data: pushData });
+        }
         if (sender && sender.role !== "admin") {
           const { data: request } = await admin.from("requests").select("title, payment_ref").eq("id", message.request_id).maybeSingle();
           await emailAdmin(
